@@ -1,0 +1,10 @@
+id,category,subcategory,transaction_type,quantity,date,supplier,notes,created_at
+4,Chemicals,njnj,Stock In,1.0,<class 'datetime.date'>,,,2025-10-05 18:23:11
+8,Chemicals,njnj,Stock In,1.0,2025-10-05,,,2025-10-05 18:45:18
+9,Chemicals,njnj,Stock In,1.0,2025-10-05,,,2025-10-05 18:45:22
+10,Chemicals,njnj,Stock In,1.0,2025-10-05,,,2025-10-05 18:45:38
+11,Chemicals,njnj,Stock In,1.0,2025-10-05,,,2025-10-05 18:45:41
+12,Chemicals,njnj,Stock In,1.0,2025-10-05,,,2025-10-05 18:45:43
+13,Chemicals,njnj,Stock In,1.0,2025-10-05,,,2025-10-05 18:45:45
+14,Chemicals,njnj,Stock In,1.0,2025-10-05,,,2025-10-05 18:49:46
+15,Chemicals,njnj,Stock In,1.0,2025-10-05,,,2025-10-05 18:49:57
