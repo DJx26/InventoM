@@ -5,6 +5,78 @@ import os
 from io import BytesIO
 from data_manager import DataManager
 from utils import format_date, validate_quantity
+try:
+    from utils import parse_size_string, evaluate_paper_fit_options
+except Exception:
+    # Fallback definitions to avoid import errors on some deployments
+    import re
+    def parse_size_string(size_text):
+        if not isinstance(size_text, str):
+            return None, None
+        text = size_text.strip().lower()
+        for sep in ['×', '*', 'x', 'X']:
+            text = text.replace(sep, 'x')
+        match = re.search(r"(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)", text)
+        if not match:
+            return None, None
+        try:
+            return float(match.group(1)), float(match.group(2))
+        except ValueError:
+            return None, None
+
+    def _compute_fit_for_sheet(stock_width, stock_height, req_width, req_height):
+        if min(stock_width, stock_height) <= 0 or min(req_width, req_height) <= 0:
+            return None
+        stock_area = stock_width * stock_height
+        piece_area = req_width * req_height
+        cols_a = int(stock_width // req_width)
+        rows_a = int(stock_height // req_height)
+        count_a = max(0, cols_a * rows_a)
+        waste_a = stock_area - (count_a * piece_area)
+        cols_b = int(stock_width // req_height)
+        rows_b = int(stock_height // req_width)
+        count_b = max(0, cols_b * rows_b)
+        waste_b = stock_area - (count_b * piece_area)
+        candidates = []
+        if count_a > 0:
+            utilization_a = 0.0 if stock_area <= 0 else (count_a * piece_area) / stock_area
+            candidates.append({'best_count': count_a,'best_layout': 'normal','rows': rows_a,'cols': cols_a,'waste_area': max(0.0, waste_a),'utilization': utilization_a})
+        if count_b > 0:
+            utilization_b = 0.0 if stock_area <= 0 else (count_b * piece_area) / stock_area
+            candidates.append({'best_count': count_b,'best_layout': 'rotated','rows': rows_b,'cols': cols_b,'waste_area': max(0.0, waste_b),'utilization': utilization_b})
+        if not candidates:
+            return None
+        candidates.sort(key=lambda c: (-c['best_count'], c['waste_area']))
+        return candidates[0]
+
+    def evaluate_paper_fit_options(custom_w, custom_h, stock_rows_df):
+        results = []
+        if stock_rows_df is None or stock_rows_df.empty:
+            return results
+        for _, row in stock_rows_df.iterrows():
+            sub = str(row.get('subcategory', ''))
+            qty = float(row.get('remaining_qty', 0)) if 'remaining_qty' in row else 0.0
+            sw, sh = parse_size_string(sub)
+            if sw is None or sh is None:
+                continue
+            fit = _compute_fit_for_sheet(sw, sh, custom_w, custom_h)
+            if fit is None:
+                continue
+            results.append({
+                'subcategory': sub,
+                'stock_width': sw,
+                'stock_height': sh,
+                'remaining_qty': qty,
+                'pieces_per_sheet': fit['best_count'],
+                'rows': fit['rows'],
+                'cols': fit['cols'],
+                'orientation': fit['best_layout'],
+                'waste_area': fit['waste_area'],
+                'utilization': fit['utilization'],
+                'total_pieces_possible': fit['best_count'] * qty
+            })
+        results.sort(key=lambda r: (-r['pieces_per_sheet'], r['waste_area'], -r['utilization']))
+        return results
 from auth import AuthManager
 
 st.set_page_config(
