@@ -248,8 +248,8 @@ def show_category_page(category, include_supplier=False):
             supplier = st.text_input("Supplier Name", value=default_supplier, placeholder="Enter supplier name", key=f"supplier_{category}")
 
         notes = st.text_area("Notes (Optional)", placeholder="Additional notes about this transaction", key=f"notes_{category}")
-         # Instant best-fit helper for Paper while adding transactions
-         if category == "Paper":
+          # Quick best-fit helper for Paper while adding transactions (uses current stock)
+        if category == "Paper":
             with st.expander("✂️ Find best fit now (from current stock)", expanded=False):
                 helper_col1, helper_col2 = st.columns(2)
                 with helper_col1:
@@ -281,7 +281,6 @@ def show_category_page(category, include_supplier=False):
                             results_now = [r for r in results_now if r['pieces_per_sheet'] >= min_pieces_now]
 
                         if results_now:
-                            import pandas as pd
                             df_now = pd.DataFrame([
                                 {
                                     "Stock Size": f"{int(r['stock_width'])}x{int(r['stock_height'])}",
