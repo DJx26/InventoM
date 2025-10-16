@@ -5,6 +5,7 @@ import os
 from io import BytesIO
 from data_manager import DataManager
 from utils import format_date, validate_quantity
+from utils import parse_size_string, evaluate_paper_fit_options
 from auth import AuthManager
 
 st.set_page_config(
