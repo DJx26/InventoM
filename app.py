@@ -5,6 +5,7 @@ import os
 from io import BytesIO
 from data_manager import DataManager
 from utils import format_date, validate_quantity
+rom utils import parse_size_string, evaluate_paper_fit_options
 from auth import AuthManager
 
 st.set_page_config(
@@ -411,6 +412,53 @@ def show_category_page(category, include_supplier=False):
                 hide_index=True,
                 column_config=column_config
             )
+            # Paper Cut Optimizer
+            if category == "Paper":
+                with st.expander("✂️ Paper Cut Optimizer", expanded=False):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        custom_size_text = st.text_input(
+                            "Custom required size (e.g., 15x20)",
+                            placeholder="width x height"
+                        )
+                    with c2:
+                        min_pieces = st.number_input(
+                            "Minimum pieces per sheet (optional)",
+                            min_value=0,
+                            value=0,
+                            step=1
+                        )
+
+                    if custom_size_text:
+                        rw, rh = parse_size_string(custom_size_text)
+                        if rw is None or rh is None or rw <= 0 or rh <= 0:
+                            st.error("Could not parse custom size. Use format like '15x20'.")
+                        else:
+                            paper_stock = st.session_state.data_manager.get_current_stock("Paper")
+                            results = evaluate_paper_fit_options(rw, rh, paper_stock)
+                            if min_pieces > 0:
+                                results = [r for r in results if r['pieces_per_sheet'] >= min_pieces]
+
+                            if results:
+                                # Show a compact table
+                                import pandas as pd
+                                df = pd.DataFrame([
+                                    {
+                                        "Stock Size": f"{int(r['stock_width'])}x{int(r['stock_height'])}",
+                                        "Subcategory": r['subcategory'],
+                                        "Qty": r['remaining_qty'],
+                                        "Pieces/Sheet": r['pieces_per_sheet'],
+                                        "Layout": r['orientation'],
+                                        "RowsxCols": f"{r['rows']}x{r['cols']}",
+                                        "Utilization": f"{r['utilization']*100:.1f}%",
+                                        "Waste Area": f"{r['waste_area']:.0f}",
+                                        "Total Pieces": int(r['total_pieces_possible'])
+                                    }
+                                    for r in results
+                                ])
+                                st.dataframe(df, use_container_width=True, hide_index=True)
+                            else:
+                                st.info("No fitting options found for this size in current Paper stock.")
             with st.expander("Quick Delete Subcategory (exact match)", expanded=False):
                 if not current_stock.empty:
                     for idx, row in current_stock.iterrows():
