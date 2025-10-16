@@ -319,7 +319,7 @@ def show_category_page(category, include_supplier=False):
             supplier = st.text_input("Supplier Name", value=default_supplier, placeholder="Enter supplier name", key=f"supplier_{category}")
 
         notes = st.text_area("Notes (Optional)", placeholder="Additional notes about this transaction", key=f"notes_{category}")
-          # Quick best-fit helper for Paper while adding transactions (uses current stock)
+         # Quick best-fit helper for Paper while adding transactions (uses current stock)
         if category == "Paper":
             with st.expander("✂️ Find best fit now (from current stock)", expanded=False):
                 helper_col1, helper_col2 = st.columns(2)
@@ -352,21 +352,38 @@ def show_category_page(category, include_supplier=False):
                             results_now = [r for r in results_now if r['pieces_per_sheet'] >= min_pieces_now]
 
                         if results_now:
-                            df_now = pd.DataFrame([
-                                {
-                                    "Stock Size": f"{int(r['stock_width'])}x{int(r['stock_height'])}",
-                                    "Subcategory": r['subcategory'],
-                                    "Qty": r['remaining_qty'],
-                                    "Pieces/Sheet": r['pieces_per_sheet'],
-                                    "Layout": r['orientation'],
-                                    "RowsxCols": f"{r['rows']}x{r['cols']}",
-                                    "Utilization": f"{r['utilization']*100:.1f}%",
-                                    "Waste Area": f"{r['waste_area']:.0f}",
-                                    "Total Pieces": int(r['total_pieces_possible'])
-                                }
-                                for r in results_now
-                            ])
-                            st.dataframe(df_now, use_container_width=True, hide_index=True)
+                            try:
+                                import pandas as pd
+                                df_now = pd.DataFrame([
+                                    {
+                                        "Stock Size": f"{int(r['stock_width'])}x{int(r['stock_height'])}",
+                                        "Subcategory": r['subcategory'],
+                                        "Qty": r['remaining_qty'],
+                                        "Pieces/Sheet": r['pieces_per_sheet'],
+                                        "Layout": r['orientation'],
+                                        "RowsxCols": f"{r['rows']}x{r['cols']}",
+                                        "Utilization": f"{r['utilization']*100:.1f}%",
+                                        "Waste Area": f"{r['waste_area']:.0f}",
+                                        "Total Pieces": int(r['total_pieces_possible'])
+                                    }
+                                    for r in results_now
+                                ])
+                                st.dataframe(df_now, use_container_width=True, hide_index=True)
+                            except Exception:
+                                st.json([
+                                    {
+                                        "Stock Size": f"{int(r['stock_width'])}x{int(r['stock_height'])}",
+                                        "Subcategory": r['subcategory'],
+                                        "Qty": r['remaining_qty'],
+                                        "Pieces/Sheet": r['pieces_per_sheet'],
+                                        "Layout": r['orientation'],
+                                        "RowsxCols": f"{r['rows']}x{r['cols']}",
+                                        "Utilization": f"{r['utilization']*100:.1f}%",
+                                        "Waste Area": f"{r['waste_area']:.0f}",
+                                        "Total Pieces": int(r['total_pieces_possible'])
+                                    }
+                                    for r in results_now
+                                ])
                         else:
                             st.info("No fitting options found for this size in current Paper stock.")
         # Submit button
