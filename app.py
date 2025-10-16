@@ -248,7 +248,56 @@ def show_category_page(category, include_supplier=False):
 
         notes = st.text_area("Notes (Optional)", placeholder="Additional notes about this transaction", key=f"notes_{category}")
          # Instant best-fit helper for Paper while adding transactions
-        
+         if category == "Paper":
+            with st.expander("✂️ Find best fit now (from current stock)", expanded=False):
+                helper_col1, helper_col2 = st.columns(2)
+                with helper_col1:
+                    # Try to parse a size from the subcategory text if present; user can override
+                    default_size_text = subcategory if subcategory else ""
+                    query_size_text = st.text_input(
+                        "Required size (e.g., 15x20)",
+                        value=default_size_text,
+                        placeholder="width x height",
+                        key=f"instant_fit_size_{category}"
+                    )
+                with helper_col2:
+                    min_pieces_now = st.number_input(
+                        "Min pieces/sheet (optional)",
+                        min_value=0,
+                        value=0,
+                        step=1,
+                        key=f"instant_fit_min_{category}"
+                    )
+
+                if query_size_text:
+                    rw_now, rh_now = parse_size_string(query_size_text)
+                    if rw_now is None or rh_now is None or rw_now <= 0 or rh_now <= 0:
+                        st.error("Could not parse size. Use format like '15x20'.")
+                    else:
+                        paper_stock_now = st.session_state.data_manager.get_current_stock("Paper")
+                        results_now = evaluate_paper_fit_options(rw_now, rh_now, paper_stock_now)
+                        if min_pieces_now > 0:
+                            results_now = [r for r in results_now if r['pieces_per_sheet'] >= min_pieces_now]
+
+                        if results_now:
+                            import pandas as pd
+                            df_now = pd.DataFrame([
+                                {
+                                    "Stock Size": f"{int(r['stock_width'])}x{int(r['stock_height'])}",
+                                    "Subcategory": r['subcategory'],
+                                    "Qty": r['remaining_qty'],
+                                    "Pieces/Sheet": r['pieces_per_sheet'],
+                                    "Layout": r['orientation'],
+                                    "RowsxCols": f"{r['rows']}x{r['cols']}",
+                                    "Utilization": f"{r['utilization']*100:.1f}%",
+                                    "Waste Area": f"{r['waste_area']:.0f}",
+                                    "Total Pieces": int(r['total_pieces_possible'])
+                                }
+                                for r in results_now
+                            ])
+                            st.dataframe(df_now, use_container_width=True, hide_index=True)
+                        else:
+                            st.info("No fitting options found for this size in current Paper stock.")
         # Submit button
         if st.button("Add Transaction", type="primary", key=f"add_transaction_{category}"):
             if subcategory and quantity > 0:
