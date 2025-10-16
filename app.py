@@ -319,7 +319,7 @@ def show_category_page(category, include_supplier=False):
 
             sample_data["notes"] = ["Initial stock", "Used for printing"]
              
-         st.dataframe(pd.DataFrame(sample_data), use_container_width=True, hide_index=True)
+        
 
         st.markdown("---")
 
