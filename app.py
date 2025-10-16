@@ -695,4 +695,6 @@ def show_reports():
         else:
             st.info("No transactions recorded yet.")
 
+if __name__ == "__main__":
+    main()
 
