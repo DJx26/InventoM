@@ -136,8 +136,10 @@ def main():
                     with st.expander(f"View {len(results)} Results", expanded=True):
                         display_results = results.copy()
                         display_results['quantity'] = display_results['quantity'].apply(lambda x: f"{x:,.0f}")
-                        display_results['date'] = pd.to_datetime(display_results['date'], errors='coerce').dt.strftime('%Y-%m-%d')
-                        display_results = display_results.sort_values('date', ascending=False)
+                          if 'date' in display_results.columns:
+                            display_results['date'] = pd.to_datetime(display_results['date'], errors='coerce').dt.strftime('%Y-%m-%d')
+                        if 'date' in display_results.columns:
+                            display_results = display_results.sort_values('date', ascending=False)
 
                         st.dataframe(
                             display_results[['date', 'category', 'subcategory', 'transaction_type', 'quantity', 'supplier', 'notes']],
@@ -211,7 +213,8 @@ def show_dashboard():
         # Format the dataframe for display
         display_df = recent_transactions.copy()
         display_df['quantity'] = display_df['quantity'].apply(lambda x: f"{x:,.0f}")
-        display_df['date'] = pd.to_datetime(display_df['date'], errors='coerce').dt.strftime('%Y-%m-%d')
+        if 'date' in display_df.columns:
+            display_df['date'] = pd.to_datetime(display_df['date'], errors='coerce').dt.strftime('%Y-%m-%d')
 
         st.dataframe(
             display_df,
@@ -634,8 +637,9 @@ def show_category_page(category, include_supplier=False):
                     # Format history for display
                     display_history = history.copy()
                     display_history['quantity'] = display_history['quantity'].apply(lambda x: f"{x:,.0f}")
-                    display_history['date'] = pd.to_datetime(display_history['date'], errors='coerce').dt.strftime('%Y-%m-%d')
-
+                    if 'date' in display_history.columns:
+                        display_history['date'] = pd.to_datetime(display_history['date'], errors='coerce').dt.strftime('%Y-%m-%d')
+  
                     st.dataframe(
                         display_history,
                         use_container_width=True,
