@@ -138,7 +138,6 @@ def main():
                         display_results['quantity'] = display_results['quantity'].apply(lambda x: f"{x:,.0f}")
                           if 'date' in display_results.columns:
                             display_results['date'] = pd.to_datetime(display_results['date'], errors='coerce').dt.strftime('%Y-%m-%d')
-                        if 'date' in display_results.columns:
                             display_results = display_results.sort_values('date', ascending=False)
 
                         st.dataframe(
