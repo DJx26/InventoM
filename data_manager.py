@@ -262,6 +262,15 @@ class DataManager:
     def get_all_transactions(self):
         """Get all transactions."""
         try:
+            transactions_df = pd.read_csv(self.transactions_file)
+            return transactions_df
+        except Exception as e:
+            st.error(f"Error getting all transactions: {str(e)}")
+            return pd.DataFrame()
+
+    def bulk_upload(self, category, df, include_supplier=False):
+        """Bulk upload transactions from Excel file."""
+        try:
             # Normalize column names: strip whitespace and convert to lowercase for comparison
             df.columns = df.columns.str.strip()
             normalized_df_columns = {col.lower(): col for col in df.columns}
