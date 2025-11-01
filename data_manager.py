@@ -262,24 +262,38 @@ class DataManager:
     def get_all_transactions(self):
         """Get all transactions."""
         try:
-            transactions_df = pd.read_csv(self.transactions_file)
-            return transactions_df
-        except Exception as e:
-            st.error(f"Error getting all transactions: {str(e)}")
-            return pd.DataFrame()
-
-    def bulk_upload(self, category, df, include_supplier=False):
-        """Bulk upload transactions from Excel file."""
-        try:
+            # Normalize column names: strip whitespace and convert to lowercase for comparison
+            df.columns = df.columns.str.strip()
+            normalized_df_columns = {col.lower(): col for col in df.columns}
+            
             required_columns = ['subcategory', 'transaction_type', 'quantity', 'date']
             if include_supplier:
                 required_columns.append('supplier')
 
-            # Check if required columns exist
-            missing_columns = [col for col in required_columns if col not in df.columns]
+            # Check if required columns exist (case-insensitive, ignoring whitespace)
+            missing_columns = []
+            column_mapping = {}
+            for req_col in required_columns:
+                found = False
+                for df_col_lower, df_col_original in normalized_df_columns.items():
+                    if df_col_lower == req_col.lower():
+                        column_mapping[req_col] = df_col_original
+                        found = True
+                        break
+                if not found:
+                    missing_columns.append(req_col)
+            
             if missing_columns:
-                st.error(f"Missing required columns: {', '.join(missing_columns)}")
+                st.error(
+                    f"❌ **Missing required columns:** {', '.join(missing_columns)}\n\n"
+                    f"**Found columns in your file:** {', '.join(df.columns.tolist())}\n\n"
+                    f"**Required columns:** {', '.join(required_columns)}\n\n"
+                    f"**Optional columns:** notes"
+                )
                 return 0
+            
+            # Rename columns to standardized names using the mapping
+            df = df.rename(columns=column_mapping)
 
             success_count = 0
 
