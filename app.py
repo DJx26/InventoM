@@ -582,7 +582,6 @@ def show_category_page(category, include_supplier=False):
 
                             if results:
                                 # Show a compact table
-                                import pandas as pd
                                 df = pd.DataFrame([
                                     {
                                         "Stock Size": f"{int(r['stock_width'])}x{int(r['stock_height'])}",
