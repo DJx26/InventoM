@@ -419,7 +419,7 @@ def show_category_page(category, include_supplier=False):
         uploaded_file = st.file_uploader(
             "Upload Excel file (.xlsx format recommended)",
             type=['xlsx'],
-            help="Upload an Excel file (.xlsx format) with columns: subcategory,remaining_qty, last_updated , supplier (for Paper), notes",
+            help="Upload an Excel file (.xlsx format) with columns: subcategory, remaining_qty , last_updated , supplier (for Paper), notes",
             key=f"uploader_{category}"
         )
 
@@ -459,7 +459,7 @@ def show_category_page(category, include_supplier=False):
 
         # Show expected format
         with st.expander("📋 Expected Excel Format"):
-            sample_columns = ["subcategory", "transaction_type", "quantity", "date"]
+            sample_columns = ["subcategory","remaining_qty", "last_updated"]
             if include_supplier:
                 sample_columns.append("supplier")
             sample_columns.append("notes")
