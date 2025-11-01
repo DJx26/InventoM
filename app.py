@@ -419,15 +419,36 @@ def show_category_page(category, include_supplier=False):
         uploaded_file = st.file_uploader(
             "Upload Excel file (.xlsx format recommended)",
             type=['xlsx'],
-            help="Upload an Excel file (.xlsx format) with columns: subcategory, remaining_qty , last_updated , supplier (for Paper), notes",
+            help="Upload an Excel file (.xlsx format) with columns: subcategory, transaction_type, quantity, date, supplier (for Paper), notes",
             key=f"uploader_{category}"
         )
 
         if uploaded_file is not None:
             try:
+                # Read Excel file (using openpyxl engine for .xlsx files)
                 df = pd.read_excel(uploaded_file, engine='openpyxl')
-                st.write("Preview of uploaded data:")
+                
+                st.write("**Preview of uploaded data:**")
                 st.dataframe(df.head(), use_container_width=True)
+                
+                # Show detected columns
+                st.info(f"**Detected columns:** {', '.join(df.columns.tolist())}")
+                
+                # Show expected vs found columns
+                required_cols = ['subcategory', 'transaction_type', 'quantity', 'date']
+                if include_supplier:
+                    required_cols.append('supplier')
+                
+                detected_lower = [col.lower().strip() for col in df.columns]
+                missing = [col for col in required_cols if col.lower() not in detected_lower]
+                
+                if missing:
+                    st.warning(
+                        f"⚠️ **Expected columns:** {', '.join(required_cols)}\n\n"
+                        f"**Found columns:** {', '.join(df.columns.tolist())}\n\n"
+                        f"**Missing:** {', '.join(missing)}\n\n"
+                        "Please ensure your Excel file has the correct column names (case-insensitive)."
+                    )
 
                 if st.button("Process Upload", key=f"process_upload_{category}"):
                     success_count = st.session_state.data_manager.bulk_upload(category, df, include_supplier)
@@ -456,6 +477,7 @@ def show_category_page(category, include_supplier=False):
                     )
                 else:
                     st.error(f"Error reading Excel file: {error_msg}")
+
 
         # Show expected format
         with st.expander("📋 Expected Excel Format"):
