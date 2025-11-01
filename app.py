@@ -417,15 +417,15 @@ def show_category_page(category, include_supplier=False):
         # Excel upload section
         st.subheader("📊 Bulk Upload")
         uploaded_file = st.file_uploader(
-            "Upload Excel file",
-            type=['xlsx', 'xls'],
-            help="Upload an Excel file with columns: subcategory, transaction_type, quantity, date, supplier (for Paper), notes",
+            "Upload Excel file (.xlsx format recommended)",
+            type=['xlsx'],
+            help="Upload an Excel file (.xlsx format) with columns: subcategory, transaction_type, quantity, date, supplier (for Paper), notes",
             key=f"uploader_{category}"
         )
 
         if uploaded_file is not None:
             try:
-                df = pd.read_excel(uploaded_file)
+                df = pd.read_excel(uploaded_file, engine='openpyxl')
                 st.write("Preview of uploaded data:")
                 st.dataframe(df.head(), use_container_width=True)
 
@@ -437,8 +437,25 @@ def show_category_page(category, include_supplier=False):
                     else:
                         st.error("No valid transactions found in the uploaded file.")
 
+            except ImportError as e:
+                if 'xlrd' in str(e).lower():
+                    st.error(
+                        "⚠️ Missing dependency: xlrd is required for .xls files. "
+                        "Please install it with: `pip install xlrd>=2.0.1`\n\n"
+                        "**Alternative:** Convert your file to .xlsx format, which is supported by default."
+                    )
+                else:
+                    st.error(f"Error reading Excel file: {str(e)}")
             except Exception as e:
-                st.error(f"Error reading Excel file: {str(e)}")
+                error_msg = str(e)
+                if 'xlrd' in error_msg.lower():
+                    st.error(
+                        "⚠️ Missing dependency: xlrd is required for .xls files. "
+                        "Please install it with: `pip install xlrd>=2.0.1`\n\n"
+                        "**Alternative:** Convert your file to .xlsx format, which is supported by default."
+                    )
+                else:
+                    st.error(f"Error reading Excel file: {error_msg}")
 
         # Show expected format
         with st.expander("📋 Expected Excel Format"):
