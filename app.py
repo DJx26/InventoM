@@ -419,7 +419,7 @@ def show_category_page(category, include_supplier=False):
         uploaded_file = st.file_uploader(
             "Upload Excel file (.xlsx format recommended)",
             type=['xlsx'],
-            help="Upload an Excel file (.xlsx format) with columns: subcategory, transaction_type, quantity, date, supplier (for Paper), notes",
+            help="Upload an Excel file (.xlsx format) with columns: subcategory,remaining_qty, last_updated , supplier (for Paper), notes",
             key=f"uploader_{category}"
         )
 
