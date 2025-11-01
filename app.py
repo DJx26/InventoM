@@ -357,7 +357,6 @@ def show_category_page(category, include_supplier=False):
 
                         if results_now:
                             try:
-                                import pandas as pd
                                 df_now = pd.DataFrame([
                                     {
                                         "Stock Size": f"{int(r['stock_width'])}x{int(r['stock_height'])}",
@@ -460,7 +459,11 @@ def show_category_page(category, include_supplier=False):
 
             sample_data["notes"] = ["Initial stock", "Used for printing"]
              
-        
+            try:
+                st.dataframe(pd.DataFrame(sample_data), use_container_width=True, hide_index=True)
+            except Exception:
+                # Fallback display if pandas import is unavailable at runtime
+                st.json(sample_data)
 
         st.markdown("---")
 
