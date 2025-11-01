@@ -136,9 +136,11 @@ def main():
                     with st.expander(f"View {len(results)} Results", expanded=True):
                         display_results = results.copy()
                         display_results['quantity'] = display_results['quantity'].apply(lambda x: f"{x:,.0f}")
-                          if 'date' in display_results.columns:
-                              display_results['date'] = pd.to_datetime(display_results['date'], errors='coerce').dt.strftime('%Y-%m-%d')
-                              display_results = display_results.sort_values('date', ascending=False)
+                        try:
+                            display_results['date'] = pd.to_datetime(display_results['date'], errors='coerce').dt.strftime('%Y-%m-%d')
+                            display_results = display_results.sort_values('date', ascending=False)
+                        except (KeyError, AttributeError):
+                            pass
 
                         st.dataframe(
                             display_results[['date', 'category', 'subcategory', 'transaction_type', 'quantity', 'supplier', 'notes']],
