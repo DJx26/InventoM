@@ -4,13 +4,16 @@ import os
 
 class AuthManager:
     def __init__(self):
-        self.password_file = "data/password.txt"
+        # Anchor password file to project folder to avoid per-CWD duplicates
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.password_file = os.path.join(base_dir, "data", "password.txt")
         self._initialize_password()
     
     def _initialize_password(self):
         """Initialize password file with default password if not exists."""
-        if not os.path.exists("data"):
-            os.makedirs("data")
+        data_dir = os.path.dirname(self.password_file)
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
         
         if not os.path.exists(self.password_file):
             default_password = "admin123"
