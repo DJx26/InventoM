@@ -8,4 +8,9 @@ dependencies = [
     "pandas>=2.3.3",
     "streamlit>=1.50.0",
     "xlrd>=2.0.1",
+    "gspread>=6.0.0",
+    "google-auth>=2.23.0",
+    "google-auth-oauthlib>=1.1.0",
+    "google-auth-httplib2>=0.1.1",
+]
 ]
