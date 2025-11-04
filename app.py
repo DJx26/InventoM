@@ -93,7 +93,8 @@ if 'auth_manager' not in st.session_state:
 
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
-def check_sheets_status():
+    
+    def check_sheets_status():
     """Display Google Sheets configuration status."""
     import os
     from sheets_manager import SheetsManager
