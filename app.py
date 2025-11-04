@@ -237,7 +237,11 @@ def main():
             st.session_state.auth_manager.logout()
 
         st.markdown("---")
-
+# Google Sheets Status Checker
+    with st.expander("🔍 Google Sheets Status", expanded=False):
+            check_sheets_status()
+        
+        st.markdown("---")
         # Global search
         st.subheader("🔍 Global Search")
         search_query = st.text_input("Search all transactions", placeholder="Search by product, supplier, notes...")
