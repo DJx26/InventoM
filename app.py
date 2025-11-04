@@ -197,7 +197,7 @@ def check_sheets_status():
                 st.success(f"{name} installed (version {ver})")
             except Exception as e:
                 st.error(f"{name} NOT installed: {e}")
-         missing.append(name)
+        missing.append(name)
         _pkg("gspread")
         _pkg("google.oauth2")
        try:
