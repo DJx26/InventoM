@@ -187,12 +187,12 @@ def check_sheets_status():
 
      # Package diagnostics (to see if pip installed gspread/google-auth)
     with st.expander("📦 Package diagnostics", expanded=False):
-    import sys
-    st.caption(f"Python: {sys.version}")
+     import sys
+     st.caption(f"Python: {sys.version}")
 
-    missing = []
+     missing = []
 
-    def _pkg(name):
+     def _pkg(name):
         try:
             mod = __import__(name)
             ver = getattr(mod, "__version__", "unknown")
@@ -201,9 +201,9 @@ def check_sheets_status():
             st.error(f"{name} NOT installed: {e}")
             missing.append(name)
 
-    _pkg("gspread")
-    _pkg("google.oauth2")
-
+     _pkg("gspread")
+     _pkg("google.oauth2")
+ 
     # Check googleapiclient (optional)
     try:
         __import__("googleapiclient")
