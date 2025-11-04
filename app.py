@@ -93,7 +93,7 @@ if 'auth_manager' not in st.session_state:
 
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
-    
+
 def check_sheets_status():
     """Display Google Sheets configuration status."""
     import os
@@ -163,7 +163,7 @@ def check_sheets_status():
         else:
             st.write("**Spreadsheet ID not set**")
             st.caption("Set via: Environment Variable, Streamlit Secrets, or data/config.txt")
-            
+    
     # Allow setting Spreadsheet ID quickly via config file
     st.markdown("---")
     st.write("Set or update Spreadsheet ID")
@@ -181,7 +181,25 @@ def check_sheets_status():
             st.rerun()
         except Exception as e:
             st.error(f"Failed to save Spreadsheet ID: {e}")
-            
+
+    # Show detected service account email (helps sharing)
+    try:
+        from sheets_manager import SheetsManager
+        _sm = SheetsManager()
+        email = _sm.get_service_account_email()
+        src = _sm.get_credentials_source()
+        if email:
+            st.caption(f"Service account email (share your sheet with this): {email}")
+        if src:
+            pretty = {
+                'secrets_table': 'Streamlit Secrets [gcp_service_account]',
+                'secrets_json': 'Streamlit Secrets GOOGLE_SERVICE_ACCOUNT_JSON',
+                'file': 'data/credentials.json'
+            }.get(src, src)
+            st.caption(f"Credentials source in use: {pretty}")
+    except Exception:
+        pass
+
     # Test connection
     if st.button("🔌 Test Connection", use_container_width=True):
         with st.spinner("Testing Google Sheets connection..."):
@@ -240,6 +258,7 @@ def check_sheets_status():
                 import traceback
                 with st.expander("Show detailed error"):
                     st.code(traceback.format_exc())
+
 def main():
 
     # Check authentication
@@ -255,15 +274,14 @@ def main():
             st.session_state.auth_manager.logout()
 
         st.markdown("---")
-   
-   # Google Sheets Status Checker
+        
+        # Google Sheets Status Checker
         with st.expander("🔍 Google Sheets Status", expanded=False):
             check_sheets_status()
         
         st.markdown("---")
 
         # Global search
-
         st.subheader("🔍 Global Search")
         search_query = st.text_input("Search all transactions", placeholder="Search by product, supplier, notes...")
 
@@ -319,7 +337,7 @@ def main():
             check_sheets_status()
         except Exception as _e:
             st.info("Google Sheets diagnostics unavailable.")
-            
+
     # Create tabs for different sections
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📊 Dashboard", "📄 Paper", "🖋️ Inks", "🧪 Chemicals", "🎞️ Poly Films", "📈 Reports"
@@ -483,7 +501,8 @@ def show_category_page(category, include_supplier=False):
             supplier = st.text_input("Supplier Name", value=default_supplier, placeholder="Enter supplier name", key=f"supplier_{category}")
 
         notes = st.text_area("Notes (Optional)", placeholder="Additional notes about this transaction", key=f"notes_{category}")
-         # Quick best-fit helper for Paper while adding transactions (uses current stock)
+
+        # Quick best-fit helper for Paper while adding transactions (uses current stock)
         if category == "Paper":
             with st.expander("✂️ Find best fit now (from current stock)", expanded=False):
                 helper_col1, helper_col2 = st.columns(2)
@@ -549,6 +568,9 @@ def show_category_page(category, include_supplier=False):
                                 ])
                         else:
                             st.info("No fitting options found for this size in current Paper stock.")
+
+        # (Inline best-fit helper removed to avoid indentation issues in some deployments)
+
         # Submit button
         if st.button("Add Transaction", type="primary", key=f"add_transaction_{category}"):
             if subcategory and quantity > 0:
@@ -638,10 +660,9 @@ def show_category_page(category, include_supplier=False):
                 else:
                     st.error(f"Error reading Excel file: {error_msg}")
 
-
         # Show expected format
         with st.expander("📋 Expected Excel Format"):
-            sample_columns = ["subcategory","remaining_qty", "last_updated"]
+            sample_columns = ["subcategory", "transaction_type", "quantity", "date"]
             if include_supplier:
                 sample_columns.append("supplier")
             sample_columns.append("notes")
@@ -657,7 +678,7 @@ def show_category_page(category, include_supplier=False):
                 sample_data["supplier"] = ["Supplier A", "Supplier B"]
 
             sample_data["notes"] = ["Initial stock", "Used for printing"]
-             
+
             try:
                 st.dataframe(pd.DataFrame(sample_data), use_container_width=True, hide_index=True)
             except Exception:
@@ -841,7 +862,7 @@ def show_category_page(category, include_supplier=False):
                     display_history['quantity'] = display_history['quantity'].apply(lambda x: f"{x:,.0f}")
                     if 'date' in display_history.columns:
                         display_history['date'] = pd.to_datetime(display_history['date'], errors='coerce').dt.strftime('%Y-%m-%d')
-  
+
                     st.dataframe(
                         display_history,
                         use_container_width=True,
@@ -1040,4 +1061,3 @@ def show_reports():
 
 if __name__ == "__main__":
     main()
-
