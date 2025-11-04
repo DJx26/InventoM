@@ -100,31 +100,7 @@ def check_sheets_status():
     """Display Google Sheets configuration status."""
     import os
     from sheets_manager import SheetsManager
-    st.session_state.data_manager.delete_data(select_item)
 
-#if "sheets_manager" not in st.session_state:
-    #st.session_state.sheets_manager = SheetsManager()
-
-if save:
-    try:
-        st.session_state.sheets_manager.append_row(df.iloc[-1].tolist())
-        st.success("✅ Saved to Google Sheets")
-    except Exception as e:
-        st.warning(f"⚠ Google Sheets save failed: {e}")
-
-elif update:
-    try:
-        st.session_state.sheets_manager.update_sheet(df)
-        st.success("🔄 Updated Google Sheets")
-    except Exception as e:
-        st.warning(f"⚠ Google Sheets update failed: {e}")
-
-elif delete:
-    try:
-        st.session_state.sheets_manager.update_sheet(df)
-        st.success("❌ Deleted from Google Sheets")
-    except Exception as e:
-        st.warning(f"⚠ Google Sheets delete failed: {e}")
 
     st.subheader("Google Sheets Connection Status")
     
