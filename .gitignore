@@ -1,32 +1,40 @@
-# Ignore environment files
-.env
-.env.local
-
-# Node modules
-node_modules/
-
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Build output
-dist/
-build/
-
-# OS files
-.DS_Store
-Thumbs.db
-
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Streamlit
+.streamlit/
+
+# Data files (keep structure, ignore credentials)
+data/credentials.json
+*.csv
+*.xlsx
+*.xls
+
+# Environment variables
+.env
+.local/
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# Ignore credentials
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Google Sheets credentials (keep this secure!)
 data/credentials.json
