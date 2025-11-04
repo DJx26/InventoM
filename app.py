@@ -93,7 +93,134 @@ if 'auth_manager' not in st.session_state:
 
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
-
+def check_sheets_status():
+    """Display Google Sheets configuration status."""
+    import os
+    from sheets_manager import SheetsManager
+    
+    st.subheader("Google Sheets Connection Status")
+    
+    # Check credentials file
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    credentials_path = os.path.join(base_dir, "data", "credentials.json")
+    
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        if os.path.exists(credentials_path):
+            st.success("✓")
+        else:
+            st.error("✗")
+    with col2:
+        if os.path.exists(credentials_path):
+            st.write("**Credentials file found**")
+        else:
+            st.write("**Credentials file missing**")
+            st.caption(f"Expected at: {credentials_path}")
+    
+    # Check spreadsheet ID (try all sources)
+    spreadsheet_id = None
+    source = "Not found"
+    
+    # Try environment variable
+    spreadsheet_id = os.getenv("GOOGLE_SHEETS_ID")
+    if spreadsheet_id:
+        source = "Environment Variable"
+    else:
+        # Try Streamlit secrets
+        try:
+            if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_ID' in st.secrets:
+                spreadsheet_id = st.secrets['GOOGLE_SHEETS_ID']
+                source = "Streamlit Secrets"
+        except:
+            pass
+    
+    # Try config file
+    if not spreadsheet_id:
+        config_file = os.path.join(base_dir, "data", "config.txt")
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith('GOOGLE_SHEETS_ID='):
+                            spreadsheet_id = line.split('=', 1)[1].strip().strip('"').strip("'")
+                            source = "Config File"
+                            break
+            except:
+                pass
+    
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        if spreadsheet_id:
+            st.success("✓")
+        else:
+            st.warning("⚠")
+    with col2:
+        if spreadsheet_id:
+            st.write(f"**Spreadsheet ID configured**")
+            st.caption(f"ID: {spreadsheet_id[:20]}... (from {source})")
+        else:
+            st.write("**Spreadsheet ID not set**")
+            st.caption("Set via: Environment Variable, Streamlit Secrets, or data/config.txt")
+    
+    # Test connection
+    if st.button("🔌 Test Connection", use_container_width=True):
+        with st.spinner("Testing Google Sheets connection..."):
+            try:
+                sheets_manager = SheetsManager()
+                if sheets_manager.is_configured():
+                    st.success("✅ **Connection successful!**")
+                    st.write(f"**Spreadsheet:** {sheets_manager.spreadsheet.title}")
+                    
+                    # List existing worksheets
+                    try:
+                        worksheets = sheets_manager.spreadsheet.worksheets()
+                        worksheet_names = [ws.title for ws in worksheets]
+                        st.write(f"**Worksheets found:** {len(worksheet_names)}")
+                        if worksheet_names:
+                            st.write(", ".join(worksheet_names))
+                        else:
+                            st.info("No worksheets found. They will be created automatically when you add data.")
+                    except Exception as e:
+                        st.warning(f"Could not list worksheets: {str(e)}")
+                    
+                    # Try to create/get worksheets
+                    st.write("**Creating/Verifying worksheets...**")
+                    test_results = []
+                    for sheet_name, headers in [
+                        ("Transactions", ['id', 'category', 'subcategory', 'transaction_type', 'quantity', 'date', 'supplier', 'notes', 'created_at']),
+                        ("Current Stock", ['category', 'subcategory', 'remaining_qty', 'last_updated', 'supplier']),
+                        ("Templates", ['id', 'template_name', 'category', 'subcategory', 'supplier', 'created_at'])
+                    ]:
+                        try:
+                            worksheet = sheets_manager.get_or_create_worksheet(sheet_name, headers)
+                            if worksheet:
+                                test_results.append((sheet_name, True, "✓ Created/Found"))
+                            else:
+                                test_results.append((sheet_name, False, "✗ Failed"))
+                        except Exception as e:
+                            test_results.append((sheet_name, False, f"✗ Error: {str(e)}"))
+                    
+                    # Display results
+                    for name, success, msg in test_results:
+                        if success:
+                            st.success(f"**{name}:** {msg}")
+                        else:
+                            st.error(f"**{name}:** {msg}")
+                    
+                else:
+                    st.error("❌ **Connection failed**")
+                    if not os.path.exists(credentials_path):
+                        st.error("Credentials file not found!")
+                    elif not spreadsheet_id:
+                        st.error("Spreadsheet ID not configured!")
+                    else:
+                        st.error("Check your credentials and spreadsheet sharing settings.")
+            except Exception as e:
+                st.error(f"❌ **Error:** {str(e)}")
+                import traceback
+                with st.expander("Show detailed error"):
+                    st.code(traceback.format_exc())
 def main():
 
     # Check authentication
