@@ -56,7 +56,10 @@ class SheetsManager:
                         pass
         self.client = None
         self.spreadsheet = None
-        self._initialize_client()
+        # Don't initialize client here - wait until we have spreadsheet_id
+        # This avoids accessing st.secrets too early
+        if self.spreadsheet_id:
+            self._initialize_client()
     
     def _initialize_client(self):
         """Initialize Google Sheets client."""
@@ -121,12 +124,25 @@ class SheetsManager:
             import streamlit as st
             if hasattr(st, 'secrets'):
                 try:
-                    # Access secrets safely - this may raise RuntimeError if not in context
-                    if 'GOOGLE_SHEETS_ID' in st.secrets:
-                        self.spreadsheet_id = st.secrets['GOOGLE_SHEETS_ID']
+                    # Try to get the secret value directly
+                    # st.secrets can be accessed like a dict or attribute
+                    secret_value = None
+                    try:
+                        # Try dict-like access first
+                        secret_value = st.secrets.get('GOOGLE_SHEETS_ID') or st.secrets['GOOGLE_SHEETS_ID']
+                    except (KeyError, AttributeError, TypeError):
+                        # Try attribute access
+                        try:
+                            secret_value = getattr(st.secrets, 'GOOGLE_SHEETS_ID', None)
+                        except (AttributeError, RuntimeError):
+                            pass
+                    
+                    if secret_value:
+                        self.spreadsheet_id = str(secret_value).strip()
                         return self.spreadsheet_id
-                except (RuntimeError, AttributeError, KeyError, TypeError):
+                except (RuntimeError, AttributeError, KeyError, TypeError) as e:
                     # Not in Streamlit context or secrets not available
+                    # Silently fail - this is expected if not in Streamlit context
                     pass
         except (NameError, ImportError):
             pass
@@ -362,3 +378,4 @@ class SheetsManager:
         except Exception as e:
             st.error(f"Error creating spreadsheet: {str(e)}")
             return None
+
