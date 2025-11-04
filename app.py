@@ -184,6 +184,23 @@ def check_sheets_status():
     else:
         st.warning("No Streamlit Secrets detected for Google credentials. Add either [gcp_service_account] or GOOGLE_SERVICE_ACCOUNT_JSON.")
 
+
+     # Package diagnostics (to see if pip installed gspread/google-auth)
+    with st.expander("📦 Package diagnostics", expanded=False):
+        import sys
+        st.caption(f"Python: {sys.version}")
+        def _pkg(name):
+            try:
+                mod = __import__(name)
+                ver = getattr(mod, "__version__", "unknown")
+                st.success(f"{name} installed (version {ver})")
+            except Exception as e:
+                st.error(f"{name} NOT installed: {e}")
+        _pkg("gspread")
+        _pkg("google.oauth2")
+        _pkg("google_auth_oauthlib")
+        _pkg("googleapiclient") 
+        
     # Allow setting Spreadsheet ID quickly via config file
     st.markdown("---")
     st.write("Set or update Spreadsheet ID")
