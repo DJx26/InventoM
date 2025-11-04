@@ -105,11 +105,13 @@ class SheetsManager:
         
         try:
             creds = None
+            self.service_account_email = None
             # 1) Try Streamlit secrets: table [gcp_service_account]
             try:
                 if st and hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
                     info_dict = dict(st.secrets['gcp_service_account'])
                     creds = Credentials.from_service_account_info(info_dict, scopes=self.SCOPES)
+                    self.service_account_email = info_dict.get('client_email')
             except Exception:
                 # ignore; will try other sources
                 pass
@@ -122,16 +124,21 @@ class SheetsManager:
                         json_str = st.secrets['GOOGLE_SERVICE_ACCOUNT_JSON']
                         info = json.loads(json_str)
                         creds = Credentials.from_service_account_info(info, scopes=self.SCOPES)
+                        self.service_account_email = info.get('client_email')
                 except Exception:
                     pass
 
             # 3) Fallback to credentials.json file
             if creds is None:
                 if os.path.exists(self.credentials_path):
-                    creds = Credentials.from_service_account_file(
-                        self.credentials_path,
-                        scopes=self.SCOPES
-                    )
+                    import json
+                    try:
+                        with open(self.credentials_path, 'r') as f:
+                            info = json.load(f)
+                            self.service_account_email = info.get('client_email')
+                    except Exception:
+                        self.service_account_email = None
+                    creds = Credentials.from_service_account_file(self.credentials_path, scopes=self.SCOPES)
                 else:
                     # Only show warning if not in session state (to avoid repetition)
                     try:
@@ -222,6 +229,10 @@ class SheetsManager:
             self._initialize_client()
         
         return self.client is not None and self.spreadsheet is not None
+
+    def get_service_account_email(self) -> Optional[str]:
+        """Return detected service account email if available."""
+        return getattr(self, 'service_account_email', None)
     
     def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
         """
@@ -452,5 +463,6 @@ class SheetsManager:
         except Exception as e:
             st.error(f"Error creating spreadsheet: {str(e)}")
             return None
+
 
 
