@@ -1,9 +1,13 @@
 import streamlit as st
+st.write("✅ App started running")
 import pandas as pd
 from datetime import datetime, date
 import os
 from io import BytesIO
 from data_manager import DataManager
+import gspread
+gc = gspread.service_account()
+
 from utils import format_date, validate_quantity
 try:
     from utils import parse_size_string, evaluate_paper_fit_options
