@@ -1,9 +1,21 @@
-import gspread
-from google.oauth2.service_account import Credentials
-import pandas as pd
 import os
-import streamlit as st
+import pandas as pd
 from typing import Optional, Dict, List
+
+# Optional imports - only needed if Google Sheets is configured
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials
+    GSPREAD_AVAILABLE = True
+except ImportError:
+    GSPREAD_AVAILABLE = False
+    gspread = None
+    Credentials = None
+
+try:
+    import streamlit as st
+except ImportError:
+    st = None
 
 class SheetsManager:
     """Manages Google Sheets API operations."""
@@ -63,11 +75,22 @@ class SheetsManager:
     
     def _initialize_client(self):
         """Initialize Google Sheets client."""
+        if not GSPREAD_AVAILABLE:
+            # gspread not installed - can't use Google Sheets
+            try:
+                if st and hasattr(st, 'info'):
+                    st.info("⚠️ **gspread not installed** - Install with: `pip install gspread google-auth`")
+            except:
+                pass
+            self.client = None
+            self.spreadsheet = None
+            return
+        
         try:
             if not os.path.exists(self.credentials_path):
                 # Only show warning if not in session state (to avoid repetition)
                 try:
-                    if 'sheets_warning_shown' not in st.session_state:
+                    if st and hasattr(st, 'session_state') and 'sheets_warning_shown' not in st.session_state:
                         st.info(
                             "ℹ️ **Google Sheets not configured** - Using local CSV files for now.\n\n"
                             "To enable Google Sheets storage:\n"
@@ -97,11 +120,12 @@ class SheetsManager:
             else:
                 # Only show warning in Streamlit context
                 try:
-                    st.warning(
-                        "⚠️ Google Sheets ID not configured. Set GOOGLE_SHEETS_ID environment variable "
-                        "or pass it to SheetsManager constructor."
-                    )
-                except (NameError, AttributeError):
+                    if st and hasattr(st, 'warning'):
+                        st.warning(
+                            "⚠️ Google Sheets ID not configured. Set GOOGLE_SHEETS_ID environment variable "
+                            "or pass it to SheetsManager constructor."
+                        )
+                except (NameError, AttributeError, RuntimeError):
                     # Not in Streamlit context, just continue
                     pass
                 
@@ -161,7 +185,7 @@ class SheetsManager:
         
         return self.client is not None and self.spreadsheet is not None
     
-    def get_or_create_worksheet(self, sheet_name: str, headers: List[str]) -> Optional[gspread.Worksheet]:
+    def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
         """
         Get existing worksheet or create it if it doesn't exist.
         
@@ -186,17 +210,29 @@ class SheetsManager:
                     worksheet.clear()
                     worksheet.append_row(headers)
                 return worksheet
-            except gspread.exceptions.WorksheetNotFound:
-                # Create new worksheet
-                worksheet = self.spreadsheet.add_worksheet(
-                    title=sheet_name,
-                    rows=1000,
-                    cols=len(headers)
-                )
-                worksheet.append_row(headers)
-                return worksheet
+            except Exception as e:
+                # Check if it's a WorksheetNotFound error
+                error_name = str(type(e).__name__)
+                error_msg = str(e).lower()
+                if 'WorksheetNotFound' in error_name or 'not found' in error_msg:
+                    # Create new worksheet
+                    worksheet = self.spreadsheet.add_worksheet(
+                        title=sheet_name,
+                        rows=1000,
+                        cols=len(headers)
+                    )
+                    worksheet.append_row(headers)
+                    return worksheet
+                else:
+                    # Re-raise other exceptions
+                    raise
         except Exception as e:
-            st.error(f"Error getting/creating worksheet '{sheet_name}': {str(e)}")
+            # Handle any other errors
+            try:
+                if st and hasattr(st, 'error'):
+                    st.error(f"Error getting/creating worksheet '{sheet_name}': {str(e)}")
+            except:
+                print(f"ERROR: Error getting/creating worksheet '{sheet_name}': {str(e)}")
             return None
     
     def read_dataframe(self, sheet_name: str, headers: List[str]) -> pd.DataFrame:
@@ -378,4 +414,5 @@ class SheetsManager:
         except Exception as e:
             st.error(f"Error creating spreadsheet: {str(e)}")
             return None
+
 
