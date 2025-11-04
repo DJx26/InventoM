@@ -237,12 +237,15 @@ def main():
             st.session_state.auth_manager.logout()
 
         st.markdown("---")
-# Google Sheets Status Checker
-    with st.expander("🔍 Google Sheets Status", expanded=False):
+   
+   # Google Sheets Status Checker
+        with st.expander("🔍 Google Sheets Status", expanded=False):
             check_sheets_status()
         
         st.markdown("---")
+
         # Global search
+
         st.subheader("🔍 Global Search")
         search_query = st.text_input("Search all transactions", placeholder="Search by product, supplier, notes...")
 
@@ -292,6 +295,13 @@ def main():
     st.title("📦 Stock Management System")
     st.markdown("---")
 
+    # Quick access: Google Sheets Status on main page
+    with st.expander("🔍 Google Sheets Status", expanded=False):
+        try:
+            check_sheets_status()
+        except Exception as _e:
+            st.info("Google Sheets diagnostics unavailable.")
+            
     # Create tabs for different sections
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📊 Dashboard", "📄 Paper", "🖋️ Inks", "🧪 Chemicals", "🎞️ Poly Films", "📈 Reports"
