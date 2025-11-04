@@ -27,7 +27,33 @@ class SheetsManager:
             "data", 
             "credentials.json"
         )
-        self.spreadsheet_id = spreadsheet_id or os.getenv("GOOGLE_SHEETS_ID")
+        # Try multiple sources for spreadsheet ID:
+        # 1. Passed as parameter
+        # 2. Environment variable
+        # 3. Streamlit secrets (for Streamlit Cloud) - checked lazily
+        # 4. Config file
+        if spreadsheet_id:
+            self.spreadsheet_id = spreadsheet_id
+        else:
+            self.spreadsheet_id = os.getenv("GOOGLE_SHEETS_ID")
+            
+            # Try config file first (before Streamlit secrets to avoid context issues)
+            if not self.spreadsheet_id:
+                config_file = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    "data",
+                    "config.txt"
+                )
+                if os.path.exists(config_file):
+                    try:
+                        with open(config_file, 'r') as f:
+                            for line in f:
+                                line = line.strip()
+                                if line.startswith('GOOGLE_SHEETS_ID='):
+                                    self.spreadsheet_id = line.split('=', 1)[1].strip().strip('"').strip("'")
+                                    break
+                    except Exception:
+                        pass
         self.client = None
         self.spreadsheet = None
         self._initialize_client()
@@ -37,16 +63,20 @@ class SheetsManager:
         try:
             if not os.path.exists(self.credentials_path):
                 # Only show warning if not in session state (to avoid repetition)
-                if 'sheets_warning_shown' not in st.session_state:
-                    st.info(
-                        "ℹ️ **Google Sheets not configured** - Using local CSV files for now.\n\n"
-                        "To enable Google Sheets storage:\n"
-                        "1. Follow the setup guide in `README_GOOGLE_SHEETS.md`\n"
-                        "2. Place `credentials.json` in the `data/` folder\n"
-                        "3. Set the `GOOGLE_SHEETS_ID` environment variable\n\n"
-                        "Your data will be stored locally until Google Sheets is configured."
-                    )
-                    st.session_state['sheets_warning_shown'] = True
+                try:
+                    if 'sheets_warning_shown' not in st.session_state:
+                        st.info(
+                            "ℹ️ **Google Sheets not configured** - Using local CSV files for now.\n\n"
+                            "To enable Google Sheets storage:\n"
+                            "1. Follow the setup guide in `README_GOOGLE_SHEETS.md`\n"
+                            "2. Place `credentials.json` in the `data/` folder\n"
+                            "3. Set the `GOOGLE_SHEETS_ID` environment variable\n\n"
+                            "Your data will be stored locally until Google Sheets is configured."
+                        )
+                        st.session_state['sheets_warning_shown'] = True
+                except (NameError, AttributeError, RuntimeError):
+                    # Not in Streamlit context, just print a message
+                    print("INFO: Google Sheets credentials not found. Using local CSV files.")
                 return
             
             # Load credentials from file
@@ -62,18 +92,57 @@ class SheetsManager:
             if self.spreadsheet_id:
                 self.spreadsheet = self.client.open_by_key(self.spreadsheet_id)
             else:
-                st.warning(
-                    "⚠️ Google Sheets ID not configured. Set GOOGLE_SHEETS_ID environment variable "
-                    "or pass it to SheetsManager constructor."
-                )
+                # Only show warning in Streamlit context
+                try:
+                    st.warning(
+                        "⚠️ Google Sheets ID not configured. Set GOOGLE_SHEETS_ID environment variable "
+                        "or pass it to SheetsManager constructor."
+                    )
+                except (NameError, AttributeError):
+                    # Not in Streamlit context, just continue
+                    pass
                 
         except Exception as e:
-            st.error(f"Error initializing Google Sheets client: {str(e)}")
+            # Show error in Streamlit context, otherwise just print
+            try:
+                st.error(f"Error initializing Google Sheets client: {str(e)}")
+            except (NameError, AttributeError, RuntimeError):
+                print(f"ERROR: Error initializing Google Sheets client: {str(e)}")
             self.client = None
             self.spreadsheet = None
     
+    def _get_spreadsheet_id(self) -> Optional[str]:
+        """Lazily get spreadsheet ID, trying Streamlit secrets if not already set."""
+        if self.spreadsheet_id:
+            return self.spreadsheet_id
+        
+        # Try Streamlit secrets (lazy access - only when needed)
+        try:
+            import streamlit as st
+            if hasattr(st, 'secrets'):
+                try:
+                    # Access secrets safely - this may raise RuntimeError if not in context
+                    if 'GOOGLE_SHEETS_ID' in st.secrets:
+                        self.spreadsheet_id = st.secrets['GOOGLE_SHEETS_ID']
+                        return self.spreadsheet_id
+                except (RuntimeError, AttributeError, KeyError, TypeError):
+                    # Not in Streamlit context or secrets not available
+                    pass
+        except (NameError, ImportError):
+            pass
+        
+        return self.spreadsheet_id
+    
     def is_configured(self) -> bool:
         """Check if Google Sheets is properly configured."""
+        # Update spreadsheet_id from secrets if needed
+        if not self.spreadsheet_id:
+            self.spreadsheet_id = self._get_spreadsheet_id()
+        
+        # If we now have a spreadsheet_id but no client, try to initialize
+        if self.spreadsheet_id and not self.client:
+            self._initialize_client()
+        
         return self.client is not None and self.spreadsheet is not None
     
     def get_or_create_worksheet(self, sheet_name: str, headers: List[str]) -> Optional[gspread.Worksheet]:
@@ -293,4 +362,3 @@ class SheetsManager:
         except Exception as e:
             st.error(f"Error creating spreadsheet: {str(e)}")
             return None
-
