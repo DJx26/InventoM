@@ -100,7 +100,8 @@ def check_sheets_status():
     """Display Google Sheets configuration status."""
     import os
     from sheets_manager import SheetsManager
-    # ✅ ALSO save to Google Sheets if configured
+    st.session_state.data_manager.delete_data(select_item)
+
 if "sheets_manager" not in st.session_state:
     st.session_state.sheets_manager = SheetsManager()
 
