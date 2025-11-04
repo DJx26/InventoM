@@ -1,12 +1,14 @@
 import streamlit as st
-st.write("✅ App started running")
+st.set_page_config(page_title="InventoM", layout="wide")
+st.write("🔥 Debug: App reached Streamlit start")
+
 import pandas as pd
 from datetime import datetime, date
 import os
 from io import BytesIO
 from data_manager import DataManager
-import gspread
-gc = gspread.service_account()
+#import gspread
+#gc = gspread.service_account()
 
 from utils import format_date, validate_quantity
 try:
