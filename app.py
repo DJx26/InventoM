@@ -102,8 +102,8 @@ def check_sheets_status():
     from sheets_manager import SheetsManager
     st.session_state.data_manager.delete_data(select_item)
 
-if "sheets_manager" not in st.session_state:
-    st.session_state.sheets_manager = SheetsManager()
+#if "sheets_manager" not in st.session_state:
+    #st.session_state.sheets_manager = SheetsManager()
 
 if save:
     try:
