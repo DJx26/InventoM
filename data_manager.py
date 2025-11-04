@@ -5,13 +5,15 @@ import streamlit as st
 from sheets_manager import SheetsManager
 
 class DataManager:
-    API_VERSION = 5
+    API_VERSION = 5  # Incremented for Google Sheets support
     def __init__(self):
         self.api_version = self.API_VERSION
-         # Initialize Google Sheets manager
+        # Initialize Google Sheets manager
         # Don't access st.secrets here - let SheetsManager handle it lazily
         self.sheets_manager = SheetsManager()
-        self.use_sheets = self.sheets_manager.is_configured()
+        # Don't check is_configured() immediately - it might try to access st.secrets too early
+        # We'll check it lazily when actually needed (in _read/write methods)
+        self._use_sheets = None  # Cache for lazy evaluation
         
         # Define sheet names
         self.transactions_sheet = "Transactions"
@@ -36,27 +38,49 @@ class DataManager:
         self.transactions_file = os.path.join(self.data_dir, "transactions.csv")
         self.stock_file = os.path.join(self.data_dir, "current_stock.csv")
         self.templates_file = os.path.join(self.data_dir, "templates.csv")
+        
         self._initialize_data_files()
-
+    
+    def _get_use_sheets(self):
+        """Lazily check if we should use Google Sheets."""
+        if self._use_sheets is None:
+            try:
+                self._use_sheets = self.sheets_manager.is_configured()
+            except Exception:
+                # If there's an error accessing secrets, default to False
+                self._use_sheets = False
+        return self._use_sheets
+    
     def _initialize_data_files(self):
         """Initialize Google Sheets worksheets or CSV files if they don't exist."""
-        if self.use_sheets:
+        if self._get_use_sheets():
             # Initialize Google Sheets worksheets
-            try:
-                self.sheets_manager.get_or_create_worksheet(
-                    self.transactions_sheet, 
-                    self.transactions_headers
-                )
-                self.sheets_manager.get_or_create_worksheet(
-                    self.stock_sheet, 
-                    self.stock_headers
-                )
-                self.sheets_manager.get_or_create_worksheet(
-                    self.templates_sheet, 
-                    self.templates_headers
-                )
-            except Exception as e:
-                st.error(f"Error initializing Google Sheets: {str(e)}")
+            errors = []
+            worksheets_to_create = [
+                (self.transactions_sheet, self.transactions_headers),
+                (self.stock_sheet, self.stock_headers),
+                (self.templates_sheet, self.templates_headers)
+            ]
+            
+            for sheet_name, headers in worksheets_to_create:
+                try:
+                    worksheet = self.sheets_manager.get_or_create_worksheet(sheet_name, headers)
+                    if worksheet is None:
+                        errors.append(f"Failed to create '{sheet_name}' worksheet")
+                except Exception as e:
+                    error_msg = f"Error creating '{sheet_name}': {str(e)}"
+                    errors.append(error_msg)
+                    try:
+                        st.error(error_msg)
+                    except (NameError, AttributeError, RuntimeError):
+                        print(f"ERROR: {error_msg}")
+            
+            if errors:
+                error_summary = "\n".join(errors)
+                try:
+                    st.warning(f"⚠️ Some worksheets could not be created:\n{error_summary}")
+                except (NameError, AttributeError, RuntimeError):
+                    print(f"WARNING: {error_summary}")
         else:
             # Fallback: initialize CSV files
             if not os.path.exists(self.data_dir):
@@ -76,7 +100,7 @@ class DataManager:
     
     def _read_transactions(self) -> pd.DataFrame:
         """Read transactions from Google Sheets or CSV."""
-        if self.use_sheets:
+        if self._get_use_sheets():
             return self.sheets_manager.read_dataframe(
                 self.transactions_sheet, 
                 self.transactions_headers
@@ -89,7 +113,7 @@ class DataManager:
     
     def _write_transactions(self, df: pd.DataFrame):
         """Write transactions to Google Sheets or CSV."""
-        if self.use_sheets:
+        if self._get_use_sheets():
             self.sheets_manager.write_dataframe(
                 self.transactions_sheet, 
                 df, 
@@ -100,7 +124,7 @@ class DataManager:
     
     def _read_stock(self) -> pd.DataFrame:
         """Read stock from Google Sheets or CSV."""
-        if self.use_sheets:
+        if self._get_use_sheets():
             return self.sheets_manager.read_dataframe(
                 self.stock_sheet, 
                 self.stock_headers
@@ -113,7 +137,7 @@ class DataManager:
     
     def _write_stock(self, df: pd.DataFrame):
         """Write stock to Google Sheets or CSV."""
-        if self.use_sheets:
+        if self._get_use_sheets():
             self.sheets_manager.write_dataframe(
                 self.stock_sheet, 
                 df, 
@@ -124,7 +148,7 @@ class DataManager:
     
     def _read_templates(self) -> pd.DataFrame:
         """Read templates from Google Sheets or CSV."""
-        if self.use_sheets:
+        if self._get_use_sheets():
             return self.sheets_manager.read_dataframe(
                 self.templates_sheet, 
                 self.templates_headers
@@ -137,7 +161,7 @@ class DataManager:
     
     def _write_templates(self, df: pd.DataFrame):
         """Write templates to Google Sheets or CSV."""
-        if self.use_sheets:
+        if self._get_use_sheets():
             self.sheets_manager.write_dataframe(
                 self.templates_sheet, 
                 df, 
@@ -235,7 +259,7 @@ class DataManager:
                 stock_df = pd.concat([stock_df, new_stock_df], ignore_index=True)
 
             # Save updated stock
-            sself._write_stock(stock_df)
+            self._write_stock(stock_df)
 
         except Exception as e:
             st.error(f"Error updating stock levels: {str(e)}")
