@@ -189,6 +189,7 @@ def check_sheets_status():
     with st.expander("📦 Package diagnostics", expanded=False):
         import sys
         st.caption(f"Python: {sys.version}")
+        missing = []
         def _pkg(name):
             try:
                 mod = __import__(name)
@@ -196,10 +197,33 @@ def check_sheets_status():
                 st.success(f"{name} installed (version {ver})")
             except Exception as e:
                 st.error(f"{name} NOT installed: {e}")
+                 missing.append(name)
         _pkg("gspread")
         _pkg("google.oauth2")
-        _pkg("google_auth_oauthlib")
-        _pkg("googleapiclient") 
+       try:
+            __import__("googleapiclient")
+            st.success("googleapiclient installed")
+        except Exception as e:
+            st.info(f"googleapiclient optional: {e}")
+
+        # One-click installer if missing
+        if missing:
+            st.warning("Required packages missing. Click to install now (may take ~1 min).")
+            if st.button("Install required packages", use_container_width=True):
+                try:
+                    import subprocess
+                    pkgs = [
+                        "gspread>=6.0.0",
+                        "google-auth>=2.23.0",
+                        "google-auth-oauthlib>=1.1.0",
+                        "google-auth-httplib2>=0.1.1",
+                    ]
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade"] + pkgs)
+                    st.success("Packages installed. Rerunning app…")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Auto-install failed: {e}")
+
         
     # Allow setting Spreadsheet ID quickly via config file
     st.markdown("---")
