@@ -186,7 +186,7 @@ def check_sheets_status():
 
 
      # Package diagnostics (to see if pip installed gspread/google-auth)
-   with st.expander("📦 Package diagnostics", expanded=False):
+    with st.expander("📦 Package diagnostics", expanded=False):
     import sys
     st.caption(f"Python: {sys.version}")
 
