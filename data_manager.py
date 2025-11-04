@@ -8,8 +8,8 @@ class DataManager:
     API_VERSION = 5
     def __init__(self):
         self.api_version = self.API_VERSION
-         # Always anchor data directory to the project folder, not current working directory
-        base_dir = os.path.dirname(os.path.abspath(__file__))
+         # Initialize Google Sheets manager
+        # Don't access st.secrets here - let SheetsManager handle it lazily
         self.sheets_manager = SheetsManager()
         self.use_sheets = self.sheets_manager.is_configured()
         
