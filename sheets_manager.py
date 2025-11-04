@@ -74,12 +74,29 @@ class SheetsManager:
             self._initialize_client()
     
     def _initialize_client(self):
-        """Initialize Google Sheets client."""
+        """Initialize Google Sheets client.
+
+        Order of credential sources:
+        1) Streamlit secrets as dict table [gcp_service_account]
+        2) Streamlit secrets JSON string GOOGLE_SERVICE_ACCOUNT_JSON
+        3) credentials.json file on disk
+        """
         if not GSPREAD_AVAILABLE:
             # gspread not installed - can't use Google Sheets
+            # Only show warning once to avoid spam
             try:
-                if st and hasattr(st, 'info'):
-                    st.info("⚠️ **gspread not installed** - Install with: `pip install gspread google-auth`")
+                if st and hasattr(st, 'session_state'):
+                    if 'gspread_warning_shown' not in st.session_state:
+                        st.warning(
+                            "⚠️ **Google Sheets packages not installed**\n\n"
+                            "To fix this:\n"
+                            "1. Make sure `requirements.txt` is in your repo root\n"
+                            "2. Commit and push `requirements.txt` to GitHub\n"
+                            "3. In Streamlit Cloud: Settings → Reboot app\n"
+                            "4. Check deployment logs for installation errors\n\n"
+                            "The app will use local CSV files until packages are installed."
+                        )
+                        st.session_state['gspread_warning_shown'] = True
             except:
                 pass
             self.client = None
@@ -87,29 +104,50 @@ class SheetsManager:
             return
         
         try:
-            if not os.path.exists(self.credentials_path):
-                # Only show warning if not in session state (to avoid repetition)
+            creds = None
+            # 1) Try Streamlit secrets: table [gcp_service_account]
+            try:
+                if st and hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
+                    info_dict = dict(st.secrets['gcp_service_account'])
+                    creds = Credentials.from_service_account_info(info_dict, scopes=self.SCOPES)
+            except Exception:
+                # ignore; will try other sources
+                pass
+
+            # 2) Try Streamlit secrets: JSON string GOOGLE_SERVICE_ACCOUNT_JSON
+            if creds is None:
                 try:
-                    if st and hasattr(st, 'session_state') and 'sheets_warning_shown' not in st.session_state:
-                        st.info(
-                            "ℹ️ **Google Sheets not configured** - Using local CSV files for now.\n\n"
-                            "To enable Google Sheets storage:\n"
-                            "1. Follow the setup guide in `README_GOOGLE_SHEETS.md`\n"
-                            "2. Place `credentials.json` in the `data/` folder\n"
-                            "3. Set the `GOOGLE_SHEETS_ID` environment variable\n\n"
-                            "Your data will be stored locally until Google Sheets is configured."
-                        )
-                        st.session_state['sheets_warning_shown'] = True
-                except (NameError, AttributeError, RuntimeError):
-                    # Not in Streamlit context, just print a message
-                    print("INFO: Google Sheets credentials not found. Using local CSV files.")
-                return
-            
-            # Load credentials from file
-            creds = Credentials.from_service_account_file(
-                self.credentials_path,
-                scopes=self.SCOPES
-            )
+                    if st and hasattr(st, 'secrets') and 'GOOGLE_SERVICE_ACCOUNT_JSON' in st.secrets:
+                        import json
+                        json_str = st.secrets['GOOGLE_SERVICE_ACCOUNT_JSON']
+                        info = json.loads(json_str)
+                        creds = Credentials.from_service_account_info(info, scopes=self.SCOPES)
+                except Exception:
+                    pass
+
+            # 3) Fallback to credentials.json file
+            if creds is None:
+                if os.path.exists(self.credentials_path):
+                    creds = Credentials.from_service_account_file(
+                        self.credentials_path,
+                        scopes=self.SCOPES
+                    )
+                else:
+                    # Only show warning if not in session state (to avoid repetition)
+                    try:
+                        if st and hasattr(st, 'session_state') and 'sheets_warning_shown' not in st.session_state:
+                            st.info(
+                                "ℹ️ **Google Sheets not configured** - Using local CSV files for now.\n\n"
+                                "To enable Google Sheets storage (choose ONE):\n"
+                                "- Add service account JSON to Streamlit Secrets as table [gcp_service_account]\n"
+                                "- OR add GOOGLE_SERVICE_ACCOUNT_JSON with the full JSON string\n"
+                                "- OR upload credentials.json into the app's data/ folder\n\n"
+                                "Also set GOOGLE_SHEETS_ID."
+                            )
+                            st.session_state['sheets_warning_shown'] = True
+                    except (NameError, AttributeError, RuntimeError):
+                        print("INFO: Google Sheets credentials not found. Using local CSV files.")
+                    return
             
             # Create gspread client
             self.client = gspread.authorize(creds)
