@@ -5,7 +5,6 @@ import os
 from io import BytesIO
 from data_manager import DataManager
 import gspread
-gc = gspread.service_account()
 
 from utils import format_date, validate_quantity
 try:
