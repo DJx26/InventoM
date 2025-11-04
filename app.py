@@ -163,7 +163,7 @@ def check_sheets_status():
         else:
             st.write("**Spreadsheet ID not set**")
             st.caption("Set via: Environment Variable, Streamlit Secrets, or data/config.txt")
-
+    
     # Secrets presence diagnostics
     secrets_present = False
     secrets_mode = None
@@ -267,12 +267,16 @@ def check_sheets_status():
                     
                 else:
                     st.error("❌ **Connection failed**")
-                    if not os.path.exists(credentials_path):
-                        st.error("Credentials file not found!")
-                    elif not spreadsheet_id:
-                        st.error("Spreadsheet ID not configured!")
+                    # Provide precise guidance based on what we detect
+                    if secrets_present:
+                        st.warning("Streamlit Secrets detected, but authorization failed. Verify JSON is valid, APIs enabled, and sheet is shared with the service account email shown above.")
                     else:
-                        st.error("Check your credentials and spreadsheet sharing settings.")
+                        st.error("Credentials not available from Secrets. Add credentials to Streamlit Secrets (recommended).")
+                    if not spreadsheet_id:
+                        st.error("Spreadsheet ID not configured!")
+                    # Show file path only as a fallback option
+                    if not os.path.exists(credentials_path):
+                        st.caption(f"No local credentials file at: {credentials_path}")
             except Exception as e:
                 st.error(f"❌ **Error:** {str(e)}")
                 import traceback
