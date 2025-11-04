@@ -163,7 +163,27 @@ def check_sheets_status():
         else:
             st.write("**Spreadsheet ID not set**")
             st.caption("Set via: Environment Variable, Streamlit Secrets, or data/config.txt")
-    
+
+    # Secrets presence diagnostics
+    secrets_present = False
+    secrets_mode = None
+    try:
+        import streamlit as _st
+        if hasattr(_st, 'secrets'):
+            if 'gcp_service_account' in _st.secrets:
+                secrets_present = True
+                secrets_mode = 'gcp_service_account'
+            elif 'GOOGLE_SERVICE_ACCOUNT_JSON' in _st.secrets:
+                secrets_present = True
+                secrets_mode = 'GOOGLE_SERVICE_ACCOUNT_JSON'
+    except Exception:
+        pass
+
+    if secrets_present:
+        st.success(f"Secrets detected: {secrets_mode}")
+    else:
+        st.warning("No Streamlit Secrets detected for Google credentials. Add either [gcp_service_account] or GOOGLE_SERVICE_ACCOUNT_JSON.")
+
     # Allow setting Spreadsheet ID quickly via config file
     st.markdown("---")
     st.write("Set or update Spreadsheet ID")
