@@ -2,12 +2,35 @@ import pandas as pd
 import os
 from datetime import datetime, date
 import streamlit as st
+from sheets_manager import SheetsManager
 
 class DataManager:
-    API_VERSION = 3
+    API_VERSION = 5
     def __init__(self):
         self.api_version = self.API_VERSION
          # Always anchor data directory to the project folder, not current working directory
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.sheets_manager = SheetsManager()
+        self.use_sheets = self.sheets_manager.is_configured()
+        
+        # Define sheet names
+        self.transactions_sheet = "Transactions"
+        self.stock_sheet = "Current Stock"
+        self.templates_sheet = "Templates"
+        
+        # Define column headers
+        self.transactions_headers = [
+            'id', 'category', 'subcategory', 'transaction_type', 
+            'quantity', 'date', 'supplier', 'notes', 'created_at'
+        ]
+        self.stock_headers = [
+            'category', 'subcategory', 'remaining_qty', 'last_updated', 'supplier'
+        ]
+        self.templates_headers = [
+            'id', 'template_name', 'category', 'subcategory', 'supplier', 'created_at'
+        ]
+        
+        # Fallback: legacy CSV file paths (for migration or backup)
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self.data_dir = os.path.join(base_dir, "data")
         self.transactions_file = os.path.join(self.data_dir, "transactions.csv")
@@ -16,40 +39,124 @@ class DataManager:
         self._initialize_data_files()
 
     def _initialize_data_files(self):
-        """Create data directory and initialize CSV files if they don't exist."""
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir)
-
-        # Initialize transactions file
-        if not os.path.exists(self.transactions_file):
-            transactions_df = pd.DataFrame(columns=[
-                'id', 'category', 'subcategory', 'transaction_type', 
-                'quantity', 'date', 'supplier', 'notes', 'created_at'
-            ])
-            transactions_df.to_csv(self.transactions_file, index=False)
-
-        # Initialize stock file
-        if not os.path.exists(self.stock_file):
-            stock_df = pd.DataFrame(columns=[
-                'category', 'subcategory', 'remaining_qty', 'last_updated', 'supplier'
-            ])
-            stock_df.to_csv(self.stock_file, index=False)
-
-        # Initialize templates file
-        if not os.path.exists(self.templates_file):
-            templates_df = pd.DataFrame(columns=[
-                'id', 'template_name', 'category', 'subcategory', 'supplier', 'created_at'
-            ])
-            templates_df.to_csv(self.templates_file, index=False)
+        """Initialize Google Sheets worksheets or CSV files if they don't exist."""
+        if self.use_sheets:
+            # Initialize Google Sheets worksheets
+            try:
+                self.sheets_manager.get_or_create_worksheet(
+                    self.transactions_sheet, 
+                    self.transactions_headers
+                )
+                self.sheets_manager.get_or_create_worksheet(
+                    self.stock_sheet, 
+                    self.stock_headers
+                )
+                self.sheets_manager.get_or_create_worksheet(
+                    self.templates_sheet, 
+                    self.templates_headers
+                )
+            except Exception as e:
+                st.error(f"Error initializing Google Sheets: {str(e)}")
+        else:
+            # Fallback: initialize CSV files
+            if not os.path.exists(self.data_dir):
+                os.makedirs(self.data_dir)
+            
+            if not os.path.exists(self.transactions_file):
+                transactions_df = pd.DataFrame(columns=self.transactions_headers)
+                transactions_df.to_csv(self.transactions_file, index=False)
+            
+            if not os.path.exists(self.stock_file):
+                stock_df = pd.DataFrame(columns=self.stock_headers)
+                stock_df.to_csv(self.stock_file, index=False)
+            
+            if not os.path.exists(self.templates_file):
+                templates_df = pd.DataFrame(columns=self.templates_headers)
+                templates_df.to_csv(self.templates_file, index=False)
+    
+    def _read_transactions(self) -> pd.DataFrame:
+        """Read transactions from Google Sheets or CSV."""
+        if self.use_sheets:
+            return self.sheets_manager.read_dataframe(
+                self.transactions_sheet, 
+                self.transactions_headers
+            )
+        else:
+            try:
+                return pd.read_csv(self.transactions_file)
+            except Exception:
+                return pd.DataFrame(columns=self.transactions_headers)
+    
+    def _write_transactions(self, df: pd.DataFrame):
+        """Write transactions to Google Sheets or CSV."""
+        if self.use_sheets:
+            self.sheets_manager.write_dataframe(
+                self.transactions_sheet, 
+                df, 
+                self.transactions_headers
+            )
+        else:
+            df.to_csv(self.transactions_file, index=False)
+    
+    def _read_stock(self) -> pd.DataFrame:
+        """Read stock from Google Sheets or CSV."""
+        if self.use_sheets:
+            return self.sheets_manager.read_dataframe(
+                self.stock_sheet, 
+                self.stock_headers
+            )
+        else:
+            try:
+                return pd.read_csv(self.stock_file)
+            except Exception:
+                return pd.DataFrame(columns=self.stock_headers)
+    
+    def _write_stock(self, df: pd.DataFrame):
+        """Write stock to Google Sheets or CSV."""
+        if self.use_sheets:
+            self.sheets_manager.write_dataframe(
+                self.stock_sheet, 
+                df, 
+                self.stock_headers
+            )
+        else:
+            df.to_csv(self.stock_file, index=False)
+    
+    def _read_templates(self) -> pd.DataFrame:
+        """Read templates from Google Sheets or CSV."""
+        if self.use_sheets:
+            return self.sheets_manager.read_dataframe(
+                self.templates_sheet, 
+                self.templates_headers
+            )
+        else:
+            try:
+                return pd.read_csv(self.templates_file)
+            except Exception:
+                return pd.DataFrame(columns=self.templates_headers)
+    
+    def _write_templates(self, df: pd.DataFrame):
+        """Write templates to Google Sheets or CSV."""
+        if self.use_sheets:
+            self.sheets_manager.write_dataframe(
+                self.templates_sheet, 
+                df, 
+                self.templates_headers
+            )
+        else:
+            df.to_csv(self.templates_file, index=False)
 
     def add_transaction(self, category, subcategory, transaction_type, quantity, transaction_date, supplier="", notes=""):
         """Add a new transaction and update stock levels."""
         try:
             # Load existing transactions
-            transactions_df = pd.read_csv(self.transactions_file)
+            transactions_df = self._read_transactions()
 
             # Generate new transaction ID
-            new_id = len(transactions_df) + 1
+            if not transactions_df.empty and 'id' in transactions_df.columns:
+                new_id = int(transactions_df['id'].max()) + 1 if transactions_df['id'].notna().any() else 1
+            else:
+                new_id = 1
 
             # Create new transaction record
             # Normalize inputs
@@ -74,7 +181,7 @@ class DataManager:
             transactions_df = pd.concat([transactions_df, new_transaction_df], ignore_index=True)
 
             # Save transactions
-            transactions_df.to_csv(self.transactions_file, index=False)
+            self._write_transactions(transactions_df)
 
             # Update stock levels
             self._update_stock_levels(category, subcategory, transaction_type, quantity, supplier)
@@ -89,7 +196,7 @@ class DataManager:
         """Update current stock levels based on transaction."""
         try:
             # Load current stock
-            stock_df = pd.read_csv(self.stock_file)
+            stock_df = self._read_stock()
             # Ensure numeric type for remaining_qty
             if 'remaining_qty' in stock_df.columns:
                 stock_df['remaining_qty'] = pd.to_numeric(stock_df['remaining_qty'], errors='coerce').fillna(0)
@@ -128,7 +235,7 @@ class DataManager:
                 stock_df = pd.concat([stock_df, new_stock_df], ignore_index=True)
 
             # Save updated stock
-            stock_df.to_csv(self.stock_file, index=False)
+            sself._write_stock(stock_df)
 
         except Exception as e:
             st.error(f"Error updating stock levels: {str(e)}")
@@ -136,7 +243,7 @@ class DataManager:
     def get_current_stock(self, category):
         """Get current stock levels for a specific category."""
         try:
-            stock_df = pd.read_csv(self.stock_file)
+            stock_df = self._read_stock()
             category_stock = stock_df[stock_df['category'] == category].copy()
             # Ensure numeric type before filtering
             if 'remaining_qty' in category_stock.columns:
@@ -158,8 +265,8 @@ class DataManager:
     def get_subcategories(self, category):
         """Get existing subcategories for a category."""
         try:
-            stock_df = pd.read_csv(self.stock_file)
-            transactions_df = pd.read_csv(self.transactions_file)
+            stock_df = self._read_stock()
+            transactions_df = self._read_transactions()
 
             # Get subcategories from both stock and transactions
             stock_subcategories = stock_df[stock_df['category'] == category]['subcategory'].unique()
@@ -183,7 +290,7 @@ class DataManager:
             subcategory_norm = str(subcategory).strip().lower()
 
             # Remove from current stock
-            stock_df = pd.read_csv(self.stock_file)
+            stock_df = self._read_stock()
 
             if not stock_df.empty:
                 # Build normalized columns to match robustly
@@ -196,13 +303,13 @@ class DataManager:
 
                 # Drop helper cols before saving
                 stock_df = stock_df.drop(columns=['_cat_norm', '_sub_norm'], errors='ignore')
-                stock_df.to_csv(self.stock_file, index=False)
+                self._write_stock(stock_df)
             else:
                 removed_stock = 0
 
             removed_txs = 0
             if delete_transactions:
-                tx_df = pd.read_csv(self.transactions_file)
+                tx_df = self._read_transactions()
                 if not tx_df.empty:
                     tx_df['_cat_norm'] = tx_df['category'].astype(str).str.strip().str.lower()
                     tx_df['_sub_norm'] = tx_df['subcategory'].astype(str).str.strip().str.lower()
@@ -212,7 +319,7 @@ class DataManager:
                     removed_txs = before_tx - len(tx_df)
 
                     tx_df = tx_df.drop(columns=['_cat_norm', '_sub_norm'], errors='ignore')
-                    tx_df.to_csv(self.transactions_file, index=False)
+                    self._write_transactions(tx_df)
 
             return True, removed_stock, removed_txs
         except Exception as e:
@@ -222,7 +329,7 @@ class DataManager:
     def get_transaction_history(self, category, subcategory=None, limit=None):
         """Get transaction history for a category and optionally subcategory."""
         try:
-            transactions_df = pd.read_csv(self.transactions_file)
+            transactions_df = self._read_transactions()
 
             # Filter by category
             filtered_df = transactions_df[transactions_df['category'] == category]
@@ -247,7 +354,7 @@ class DataManager:
     def get_recent_transactions(self, limit=10):
         """Get recent transactions across all categories."""
         try:
-            transactions_df = pd.read_csv(self.transactions_file)
+            transactions_df = self._read_transactions()
 
             if not transactions_df.empty:
                 # Sort by created_at or date, descending
@@ -264,7 +371,7 @@ class DataManager:
     def get_all_transactions(self):
         """Get all transactions."""
         try:
-            transactions_df = pd.read_csv(self.transactions_file)
+            transactions_df = self._read_transactions()
             return transactions_df
         except Exception as e:
             st.error(f"Error getting all transactions: {str(e)}")
@@ -353,7 +460,7 @@ class DataManager:
     def save_template(self, template_name, category, subcategory, supplier=""):
         """Save a product template for quick entry."""
         try:
-            templates_df = pd.read_csv(self.templates_file)
+            templates_df = self._read_templates()
 
             # Check if template name already exists for this category
             existing = templates_df[
@@ -366,7 +473,10 @@ class DataManager:
                 return False
 
             # Generate new template ID
-            new_id = len(templates_df) + 1
+            if not templates_df.empty and 'id' in templates_df.columns:
+                new_id = int(templates_df['id'].max()) + 1 if templates_df['id'].notna().any() else 1
+            else:
+                new_id = 1
 
             # Create new template record
             new_template = {
@@ -383,7 +493,7 @@ class DataManager:
             templates_df = pd.concat([templates_df, new_template_df], ignore_index=True)
 
             # Save templates
-            templates_df.to_csv(self.templates_file, index=False)
+            self._write_templates(templates_df)
 
             return True
 
@@ -394,7 +504,7 @@ class DataManager:
     def get_templates(self, category):
         """Get templates for a specific category."""
         try:
-            templates_df = pd.read_csv(self.templates_file)
+            templates_df = self._read_templates()
             category_templates = templates_df[templates_df['category'] == category]
             return category_templates
         except Exception as e:
@@ -404,7 +514,7 @@ class DataManager:
     def get_template_by_name(self, category, template_name):
         """Get a specific template by name and category."""
         try:
-            templates_df = pd.read_csv(self.templates_file)
+            templates_df = self._read_templates()
             template = templates_df[
                 (templates_df['category'] == category) & 
                 (templates_df['template_name'] == template_name)
@@ -419,12 +529,12 @@ class DataManager:
     def delete_template(self, category, template_name):
         """Delete a template."""
         try:
-            templates_df = pd.read_csv(self.templates_file)
+            templates_df = self._read_templates()
             templates_df = templates_df[
                 ~((templates_df['category'] == category) & 
                   (templates_df['template_name'] == template_name))
             ]
-            templates_df.to_csv(self.templates_file, index=False)
+            self._write_templates(templates_df)
             return True
         except Exception as e:
             st.error(f"Error deleting template: {str(e)}")
