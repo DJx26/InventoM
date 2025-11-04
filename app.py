@@ -163,7 +163,25 @@ def check_sheets_status():
         else:
             st.write("**Spreadsheet ID not set**")
             st.caption("Set via: Environment Variable, Streamlit Secrets, or data/config.txt")
-    
+            
+    # Allow setting Spreadsheet ID quickly via config file
+    st.markdown("---")
+    st.write("Set or update Spreadsheet ID")
+    input_id = st.text_input(
+        "Spreadsheet ID",
+        value=spreadsheet_id or "",
+        placeholder="Paste the long ID from Google Sheets URL",
+    )
+    if st.button("Save Spreadsheet ID", use_container_width=True):
+        try:
+            os.makedirs(os.path.join(base_dir, "data"), exist_ok=True)
+            with open(os.path.join(base_dir, "data", "config.txt"), 'w') as f:
+                f.write(f"GOOGLE_SHEETS_ID={input_id.strip()}\n")
+            st.success("Spreadsheet ID saved to data/config.txt")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Failed to save Spreadsheet ID: {e}")
+            
     # Test connection
     if st.button("🔌 Test Connection", use_container_width=True):
         with st.spinner("Testing Google Sheets connection..."):
