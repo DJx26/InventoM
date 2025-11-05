@@ -311,7 +311,17 @@ class SheetsManager:
             if not df.empty:
                 values = df[headers].values.tolist()
                 if values:
-                    worksheet.append_rows(values)
+                     try:
+                        # Prefer using update from A2 (works across gspread versions)
+                        worksheet.update("A2", values, value_input_option='RAW')
+                    except Exception:
+                        # Fallback for environments where update may fail; try append_rows if available
+                        try:
+                            worksheet.append_rows(values)
+                        except Exception as e:
+                            # Surface the error to Streamlit and stop
+                            st.error(f"Error writing rows to sheet '{sheet_name}': {str(e)}")
+                            return False
             
             return True
             
