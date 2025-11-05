@@ -425,9 +425,6 @@ class SheetsManager:
             return spreadsheet.id
         except Exception as e:
             st.error(f"Error creating spreadsheet: {str(e)}")
-
-            @st.cache_data(ttl=60)
-   def read_dataframe(self, sheet_name: str, headers: List[str]) -> pd.DataFrame:
  
             return None
 
