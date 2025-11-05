@@ -197,59 +197,20 @@ class SheetsManager:
         """Return which source supplied credentials: 'secrets_table' | 'secrets_json' | 'file' | None"""
         return getattr(self, 'credentials_source', None)
     
-   def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
-    """
-    Get or create worksheet, cached to avoid hitting Google API rate limits.
-    """
-    if not self.is_configured():
-        return None
-
-    # ✅ Local cache: only call API once per session per sheet
-    if not hasattr(self, "_ws_cache"):
-        self._ws_cache = {}
-
-    if sheet_name in self._ws_cache:
-        return self._ws_cache[sheet_name]
-
-    try:
-        # Try to get existing worksheet
-        try:
-            worksheet = self.spreadsheet.worksheet(sheet_name)
-            # Ensure headers exist
-            existing_headers = worksheet.row_values(1)
-            if not existing_headers or existing_headers != headers:
-                # Update headers if they don't match
-                worksheet.clear()
-                worksheet.append_row(headers)
-            # Cache the worksheet
-            self._ws_cache[sheet_name] = worksheet
-            return worksheet
-        except Exception as e:
-            # Check if it's a WorksheetNotFound error
-            error_name = str(type(e).__name__)
-            error_msg = str(e).lower()
-            if 'WorksheetNotFound' in error_name or 'not found' in error_msg:
-                # Create new worksheet
-                worksheet = self.spreadsheet.add_worksheet(
-                    title=sheet_name,
-                    rows=1000,
-                    cols=len(headers)
-                )
-                worksheet.append_row(headers)
-                # Cache the worksheet
-                self._ws_cache[sheet_name] = worksheet
-                return worksheet
-            else:
-                # Re-raise other exceptions
-                raise
-    except Exception as e:
-        try:
-            if st and hasattr(st, 'error'):
-                st.error(f"Error getting/creating worksheet '{sheet_name}': {str(e)}")
-        except:
-            print(f"ERROR: Error getting/creating worksheet '{sheet_name}': {str(e)}")
-        return None
-
+    def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
+        """
+        Get existing worksheet or create it if it doesn't exist.
+        
+        Args:
+            sheet_name: Name of the worksheet
+            headers: List of column headers
+            
+        Returns:
+            Worksheet object or None if error
+        """
+        if not self.is_configured():
+            return None
+        
         try:
             # Try to get existing worksheet
             try:
@@ -285,6 +246,44 @@ class SheetsManager:
             except:
                 print(f"ERROR: Error getting/creating worksheet '{sheet_name}': {str(e)}")
             return None
+    
+    def read_dataframe(self, sheet_name: str, headers: List[str]) -> pd.DataFrame:
+        """
+        Read data from Google Sheet into pandas DataFrame.
+        
+        Args:
+            sheet_name: Name of the worksheet
+            headers: Expected column headers
+            
+        Returns:
+            DataFrame with the data
+        """
+        if not self.is_configured():
+            return pd.DataFrame(columns=headers)
+        
+        try:
+            worksheet = self.get_or_create_worksheet(sheet_name, headers)
+            if worksheet is None:
+                return pd.DataFrame(columns=headers)
+            
+            # Get all values
+            values = worksheet.get_all_values()
+            
+            if not values or len(values) <= 1:
+                # Only headers or empty
+                return pd.DataFrame(columns=headers)
+            
+            # First row should be headers
+            df = pd.DataFrame(values[1:], columns=headers)
+            
+            # Clean empty rows
+            df = df.dropna(how='all')
+            
+            return df
+            
+        except Exception as e:
+            st.error(f"Error reading from sheet '{sheet_name}': {str(e)}")
+            return pd.DataFrame(columns=headers)
     
     def read_dataframe(self, sheet_name: str, headers: List[str]) -> pd.DataFrame:
         """
