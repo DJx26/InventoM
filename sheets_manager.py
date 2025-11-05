@@ -197,6 +197,10 @@ class SheetsManager:
         """Return which source supplied credentials: 'secrets_table' | 'secrets_json' | 'file' | None"""
         return getattr(self, 'credentials_source', None)
     
+    def get_credentials_source(self) -> Optional[str]:
+        """Return which source supplied credentials: 'secrets_table' | 'secrets_json' | 'file' | None"""
+        return getattr(self, 'credentials_source', None)
+
     def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
         """
         Get existing worksheet or create it if it doesn't exist.
@@ -210,7 +214,7 @@ class SheetsManager:
         """
         if not self.is_configured():
             return None
-        
+
         try:
             # Try to get existing worksheet
             try:
