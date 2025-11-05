@@ -356,7 +356,7 @@ class SheetsManager:
                      try:
                         # Prefer using update from A2 (works across gspread versions)
                         worksheet.update("A2", values, value_input_option='RAW')
-                    except Exception:
+                        except Exception:
                         # Fallback for environments where update may fail; try append_rows if available
                         try:
                             worksheet.append_rows(values)
