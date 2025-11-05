@@ -17,6 +17,43 @@ try:
 except ImportError:
     st = None
 
+
+@st.cache_resource
+def get_client():
+    """Cached function to get Google Sheets client."""
+    
+    if not GSPREAD_AVAILABLE:
+        st.warning("Google Sheets packages not installed. Please add `gspread` and `google-auth` to requirements.txt.")
+        return None, None
+
+    try:
+        creds = None
+        service_account_email = None
+        
+        if 'gcp_service_account' in st.secrets:
+            info_dict = dict(st.secrets['gcp_service_account'])
+            creds = Credentials.from_service_account_info(info_dict, scopes=SheetsManager.SCOPES)
+            service_account_email = info_dict.get('client_email')
+        elif 'GOOGLE_SERVICE_ACCOUNT_JSON' in st.secrets:
+            import json
+            json_str = st.secrets['GOOGLE_SERVICE_ACCOUNT_JSON']
+            if json_str:
+                info = json.loads(json_str)
+                creds = Credentials.from_service_account_info(info, scopes=SheetsManager.SCOPES)
+                service_account_email = info.get('client_email')
+        
+        if creds is None:
+            st.error("Google Sheets credentials not found in Streamlit secrets.")
+            return None, None
+            
+        client = gspread.authorize(creds)
+        return client, service_account_email
+
+    except Exception as e:
+        st.error(f"A critical error occurred during Google Sheets client initialization: {str(e)}")
+        return None, None
+
+
 class SheetsManager:
     """Manages Google Sheets API operations."""
     
@@ -42,105 +79,18 @@ class SheetsManager:
         else:
             self.spreadsheet_id = os.getenv("GOOGLE_SHEETS_ID")
 
-        self.client = None
+        self.client, self.service_account_email = get_client()
         self.spreadsheet = None
-        # Don't initialize client here - wait until we have spreadsheet_id
-        # This avoids accessing st.secrets too early
-        if self.spreadsheet_id:
-            self._initialize_client()
-    
-    def _initialize_client(self):
-        """Initialize Google Sheets client.
-
-        Order of credential sources:
-        1) Streamlit secrets as dict table [gcp_service_account]
-        2) Streamlit secrets JSON string GOOGLE_SERVICE_ACCOUNT_JSON
-        """
-        if not GSPREAD_AVAILABLE:
-            # gspread not installed - can't use Google Sheets
-            # Only show warning once to avoid spam
-            try:
-                if st and hasattr(st, 'session_state'):
-                    if 'gspread_warning_shown' not in st.session_state:
-                        st.warning(
-                            "⚠️ **Google Sheets packages not installed**\n\n"
-                            "To fix this, add `gspread` and `google-auth` to your `requirements.txt` file, "
-                            "commit the file to your repo, and reboot the app in Streamlit Cloud."
-                        )
-                        st.session_state['gspread_warning_shown'] = True
-            except:
-                pass
-            self.client = None
-            self.spreadsheet = None
-            return
         
-        try:
-            creds = None
-            self.service_account_email = None
-            self.credentials_source = None
-            
-            if not (st and hasattr(st, 'secrets')):
-                st.error("Streamlit secrets are not available. Cannot authenticate with Google Sheets.")
-                return
-
-            # 1) Try Streamlit secrets: table [gcp_service_account]
-            if 'gcp_service_account' in st.secrets:
-                try:
-                    info_dict = dict(st.secrets['gcp_service_account'])
-                    creds = Credentials.from_service_account_info(info_dict, scopes=self.SCOPES)
-                    self.service_account_email = info_dict.get('client_email')
-                    self.credentials_source = 'secrets_table'
-                except Exception as e:
-                    st.error(f"Error loading credentials from [gcp_service_account] in secrets: {e}")
-                    pass
-
-            # 2) Try Streamlit secrets: JSON string GOOGLE_SERVICE_ACCOUNT_JSON
-            if creds is None and 'GOOGLE_SERVICE_ACCOUNT_JSON' in st.secrets:
-                try:
-                    import json
-                    json_str = st.secrets['GOOGLE_SERVICE_ACCOUNT_JSON']
-                    if json_str:
-                        info = json.loads(json_str)
-                        creds = Credentials.from_service_account_info(info, scopes=self.SCOPES)
-                        self.service_account_email = info.get('client_email')
-                        self.credentials_source = 'secrets_json'
-                    else:
-                        # This case is important - the key exists but is empty
-                        st.warning("`GOOGLE_SERVICE_ACCOUNT_JSON` secret is empty.")
-                except json.JSONDecodeError:
-                    st.error("Failed to parse `GOOGLE_SERVICE_ACCOUNT_JSON`. Please ensure it's a valid JSON string.")
-                except Exception as e:
-                    st.error(f"Error loading credentials from `GOOGLE_SERVICE_ACCOUNT_JSON` in secrets: {e}")
-                    pass
-
-            # 3) If no credentials found, show a clear error
-            if creds is None:
-                try:
-                    if st and hasattr(st, 'session_state') and 'sheets_warning_shown' not in st.session_state:
-                        st.error(
-                            "**Google Sheets credentials not found in Streamlit secrets.**\n\n"
-                            "To fix this, add your Google service account credentials to your Streamlit secrets. "
-                            "You can use either a TOML table `[gcp_service_account]` or a JSON string `GOOGLE_SERVICE_ACCOUNT_JSON`."
-                        )
-                        st.session_state['sheets_warning_shown'] = True
-                except (NameError, AttributeError, RuntimeError):
-                    print("ERROR: Google Sheets credentials not found in Streamlit secrets.")
-                return
-            
-            # Create gspread client
-            self.client = gspread.authorize(creds)
-            
-            # Open spreadsheet if ID is provided
-            if self.spreadsheet_id:
+        if self.client and self.spreadsheet_id:
+            try:
                 self.spreadsheet = self.client.open_by_key(self.spreadsheet_id)
-            else:
-                # This error should be caught by is_configured() but is here as a fallback
-                st.warning("Google Sheets ID (`GOOGLE_SHEETS_ID`) not found in secrets.")
-                
-        except Exception as e:
-            st.error(f"A critical error occurred during Google Sheets client initialization: {str(e)}")
-            self.client = None
-            self.spreadsheet = None
+            except gspread.exceptions.SpreadsheetNotFound:
+                st.error(f"Spreadsheet with ID '{self.spreadsheet_id}' not found or not shared with service account.")
+                self.spreadsheet = None
+            except Exception as e:
+                st.error(f"Error opening spreadsheet: {e}")
+                self.spreadsheet = None
     
     def _get_spreadsheet_id(self) -> Optional[str]:
         """Lazily get spreadsheet ID, trying Streamlit secrets if not already set."""
