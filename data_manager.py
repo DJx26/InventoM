@@ -3,7 +3,11 @@ import os
 from datetime import datetime, date
 import streamlit as st
 from sheets_manager import SheetsManager
+import gspread
+import toml
 
+def clear_transaction_cache():
+    st.cache_data.clear()
 class DataManager:
     API_VERSION = 5  # Incremented for Google Sheets support
     def __init__(self):
