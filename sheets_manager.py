@@ -199,6 +199,19 @@ class SheetsManager:
     
     def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
         """
+        Get or create worksheet, cached to avoid hitting Google API rate limits.
+        """
+        if not self.is_configured():
+             return None
+
+    # ✅ Local cache: only call API once per session per sheet
+        if not hasattr(self, "_ws_cache"):
+        self._ws_cache = {}
+
+        if sheet_name in self._ws_cache:
+             return self._ws_cache[sheet_name]
+ 
+        """
         Get existing worksheet or create it if it doesn't exist.
         
         Args:
