@@ -1,6 +1,8 @@
 import os
 import pandas as pd
 from typing import Optional, Dict, List
+@st.cache_data(ttl=60)
+def read_dataframe(self, sheet_name: str, headers: List[str]) -> pd.DataFrame:
 
 # Optional imports - only needed if Google Sheets is configured
 try:
