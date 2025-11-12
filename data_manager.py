@@ -104,14 +104,17 @@ class DataManager:
     
 
     def _read_transactions(self) -> pd.DataFrame:
-        """Read 'Transactions' sheet data with caching."""
-        try:
+        """Read transactions from Google Sheets or CSV."""
+        if self._get_use_sheets():
             return self.sheets_manager.read_dataframe(
-                self.transactions_sheet, self.transactions_headers
+                self.transactions_sheet, 
+                self.transactions_headers
             )
-        except Exception as e:
-            st.error(f"Error reading transactions sheet: {e}")
-            return pd.DataFrame(columns=self.transactions_headers)
+        else:
+            try:
+                return pd.read_csv(self.transactions_file)
+            except Exception:
+                return pd.DataFrame(columns=self.transactions_headers)
     
     def _write_transactions(self, df: pd.DataFrame):
         """Write transactions to Google Sheets or CSV."""
@@ -127,14 +130,17 @@ class DataManager:
 
     
     def _read_stock(self) -> pd.DataFrame:
-        """Read 'Current Stock' sheet data with caching."""
-        try:
+        """Read stock from Google Sheets or CSV."""
+        if self._get_use_sheets():
             return self.sheets_manager.read_dataframe(
-                self.stock_sheet, self.stock_headers
+                self.stock_sheet, 
+                self.stock_headers
             )
-        except Exception as e:
-            st.error(f"Error reading stock sheet: {e}")
-            return pd.DataFrame(columns=self.stock_headers)
+        else:
+            try:
+                return pd.read_csv(self.stock_file)
+            except Exception:
+                return pd.DataFrame(columns=self.stock_headers)
     
     def _write_stock(self, df: pd.DataFrame):
         """Write stock to Google Sheets or CSV."""
