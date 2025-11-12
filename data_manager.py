@@ -101,8 +101,8 @@ class DataManager:
             if not os.path.exists(self.templates_file):
                 templates_df = pd.DataFrame(columns=self.templates_headers)
                 templates_df.to_csv(self.templates_file, index=False)
-    
 
+    @st.cache_data(ttl=600)
     def _read_transactions(self) -> pd.DataFrame:
         """Read transactions from Google Sheets or CSV."""
         if self._get_use_sheets():
@@ -128,7 +128,7 @@ class DataManager:
             df.to_csv(self.transactions_file, index=False)
    
 
-    
+    @st.cache_data(ttl=600)
     def _read_stock(self) -> pd.DataFrame:
         """Read stock from Google Sheets or CSV."""
         if self._get_use_sheets():
