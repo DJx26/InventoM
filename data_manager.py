@@ -50,6 +50,10 @@ class DataManager:
         if key not in st.session_state:
             st.session_state[key] = reader_func(headers)
         return st.session_state[key]
+
+    # Backwards compatibility for any cached functions referencing the old helper
+    def get_cached_sheet(self, key: str, headers: list, reader_func):
+        return self._get_cached_sheet(key, headers, reader_func)
         
     def _get_use_sheets(self):
         """Lazily check if we should use Google Sheets."""
