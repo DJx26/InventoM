@@ -411,6 +411,11 @@ def main():
             check_sheets_status()
         except Exception as _e:
             st.info("Google Sheets diagnostics unavailable.")
+        if st.button("🔄 Recalculate Current Stock", key="recalc_stock_main"):
+            if st.session_state.data_manager.recalculate_stock():
+                st.success("Current stock sheet rebuilt from transactions.")
+            else:
+                st.error("Failed to rebuild current stock. Please check the errors above.")
 
     # Create tabs for different sections
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -570,6 +575,7 @@ def show_category_page(category, include_supplier=False):
         # Transaction details
         transaction_type = st.selectbox("Transaction Type", ["Stock In", "Stock Out"], key=f"transaction_type_{category}")
         quantity = st.number_input("Quantity", min_value=0.0, step=1.0, format="%.0f", key=f"quantity_{category}")
+        is_valid_quantity, normalized_quantity = validate_quantity(quantity)
         transaction_date = st.date_input("Date", value=date.today(), key=f"date_{category}")
 
         # Supplier name (only for Paper)
@@ -651,12 +657,12 @@ def show_category_page(category, include_supplier=False):
 
         # Submit button
         if st.button("Add Transaction", type="primary", key=f"add_transaction_{category}"):
-            if subcategory and quantity > 0:
+            if subcategory and is_valid_quantity and normalized_quantity > 0:
                 success = st.session_state.data_manager.add_transaction(
                     category=category,
                     subcategory=subcategory,
                     transaction_type=transaction_type,
-                    quantity=quantity,
+                    quantity=normalized_quantity,
                     transaction_date=transaction_date,
                     supplier=supplier,
                     notes=notes
@@ -668,7 +674,7 @@ def show_category_page(category, include_supplier=False):
                 else:
                     st.error("Failed to add transaction. Please try again.")
             else:
-                st.error("Please fill in all required fields.")
+                st.error("Please fill in all required fields with a valid quantity.")
 
         st.markdown("---")
         with st.expander("Debug: Latest transactions for this category"):
