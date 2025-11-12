@@ -107,12 +107,18 @@ class DataManager:
             if not os.path.exists(self.templates_file):
                 templates_df = pd.DataFrame(columns=self.templates_headers)
                 templates_df.to_csv(self.templates_file, index=False)
-
+                
     @st.cache_data(ttl=600)
     def _read_transactions(self) -> pd.DataFrame:
-    """Read 'Transactions' with persistent session caching."""
-    return self.get_cached_sheet("transactions", self.transactions_headers,
-                                 lambda headers: self.sheets_manager.read_dataframe(self.transactions_sheet, headers))
+        """Read 'Transactions' with persistent session caching."""
+        return self.get_cached_sheet(
+            "transactions",
+            self.transactions_headers,
+            lambda headers: self.sheets_manager.read_dataframe(
+                self.transactions_sheet, headers
+            ),
+        )
+
     
     def _write_transactions(self, df: pd.DataFrame):
         """Write transactions to Google Sheets or CSV."""
@@ -125,13 +131,16 @@ class DataManager:
         else:
             df.to_csv(self.transactions_file, index=False)
    
-
     @st.cache_data(ttl=600)
     def _read_stock(self) -> pd.DataFrame:
-    """Read 'Current Stock' with persistent session caching."""
-    return self.get_cached_sheet("current_stock", self.stock_headers,
-                                 lambda headers: self.sheets_manager.read_dataframe(self.stock_sheet, headers))
-    
+        """Read 'Current Stock' with persistent session caching."""
+        return self.get_cached_sheet(
+            "current_stock",
+            self.stock_headers,
+            lambda headers: self.sheets_manager.read_dataframe(
+                self.stock_sheet, headers
+            ),
+        )
     def _write_stock(self, df: pd.DataFrame):
         """Write stock to Google Sheets or CSV."""
         if self._get_use_sheets():
