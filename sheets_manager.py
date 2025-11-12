@@ -1,6 +1,7 @@
 import os
+import time
 import pandas as pd
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 
 # Optional imports - only needed if Google Sheets is configured
 try:
@@ -219,39 +220,21 @@ class SheetsManager:
                 print(f"ERROR: Error getting/creating worksheet '{sheet_name}': {str(e)}")
             return None
 
-    @st.cache_data(ttl=300)
-    def read_dataframe(self, sheet_name: str, headers: List[str]) -> pd.DataFrame:
-        """
-        Read data from Google Sheet into pandas DataFrame.
-        Cached to avoid exceeding API read quotas.
-        """
-        if not self.is_configured():
-            return pd.DataFrame(columns=headers)
 
-        try:
-            worksheet = self.get_or_create_worksheet(sheet_name, headers)
-            if worksheet is None:
-                return pd.DataFrame(columns=headers)
+    def _get_dataframe_cache(self) -> Dict[Tuple[str, Tuple[str, ...]], Tuple[pd.DataFrame, float]]:
+        """Return (and lazily create) the in-memory dataframe cache."""
+        if not hasattr(self, "_df_cache"):
+            self._df_cache = {}
+        return self._df_cache
 
-            values = worksheet.get_all_values()
-
-            if not values or len(values) <= 1:
-                # Only headers or empty
-                return pd.DataFrame(columns=headers)
-
-            df = pd.DataFrame(values[1:], columns=headers)
-            df = df.dropna(how="all")  # Clean empty rows
-
-            return df
-
-        except Exception as e:
-            if st and hasattr(st, "error"):
-                st.error(f"Error reading from sheet '{sheet_name}': {str(e)}")
-            else:
-                print(f"Error reading from sheet '{sheet_name}': {str(e)}")
-            return pd.DataFrame(columns=headers)
-
-    def read_dataframe(self, sheet_name: str, headers: List[str]) -> pd.DataFrame:
+    def read_dataframe(
+        self,
+        sheet_name: str,
+        headers: List[str],
+        *,
+        force_refresh: bool = False,
+        ttl_seconds: int = 300,
+        ) -> pd.DataFrame:
         """
         Read data from Google Sheet into pandas DataFrame.
         
@@ -264,29 +247,40 @@ class SheetsManager:
         """
         if not self.is_configured():
             return pd.DataFrame(columns=headers)
-        
+        cache_key = (sheet_name, tuple(headers or []))
+        cache = self._get_dataframe_cache()
+        now = time.time()
+
+        if not force_refresh and cache_key in cache:
+            cached_df, cached_at = cache[cache_key]
+            if ttl_seconds <= 0 or (now - cached_at) < ttl_seconds:
+                return cached_df.copy(deep=True)
+            # Stale entry; remove it before refreshing
+            del cache[cache_key]
+
         try:
             worksheet = self.get_or_create_worksheet(sheet_name, headers)
             if worksheet is None:
                 return pd.DataFrame(columns=headers)
-            
-            # Get all values
+
             values = worksheet.get_all_values()
-            
+
             if not values or len(values) <= 1:
                 # Only headers or empty
-                return pd.DataFrame(columns=headers)
-            
-            # First row should be headers
-            df = pd.DataFrame(values[1:], columns=headers)
-            
-            # Clean empty rows
-            df = df.dropna(how='all')
-            
+                df = pd.DataFrame(columns=headers)
+            else:
+                df = pd.DataFrame(values[1:], columns=headers)
+                df = df.dropna(how="all")  # Clean empty rows
+
+            # Cache the freshly fetched dataframe
+            cache[cache_key] = (df.copy(deep=True), now)
             return df
-            
+
         except Exception as e:
-            st.error(f"Error reading from sheet '{sheet_name}': {str(e)}")
+            if st and hasattr(st, "error"):
+                st.error(f"Error reading from sheet '{sheet_name}': {str(e)}")
+            else:
+                print(f"Error reading from sheet '{sheet_name}': {str(e)}")
             return pd.DataFrame(columns=headers)
     
     def write_dataframe(self, sheet_name: str, df: pd.DataFrame, headers: List[str]):
