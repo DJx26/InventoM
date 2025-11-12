@@ -937,7 +937,10 @@ def show_category_page(category, include_supplier=False):
                 if not history.empty:
                     # Format history for display
                     display_history = history.copy()
-                    display_history['quantity'] = display_history['quantity'].apply(lambda x: f"{x:,.0f}")
+                    display_history['quantity'] = pd.to_numeric(display_history['quantity'], errors='coerce')
+                    display_history['quantity'] = display_history['quantity'].apply(
+                        lambda x: f"{x:,.0f}" if pd.notna(x) else ""
+                    )
                     if 'date' in display_history.columns:
                         display_history['date'] = pd.to_datetime(display_history['date'], errors='coerce').dt.strftime('%Y-%m-%d')
 
