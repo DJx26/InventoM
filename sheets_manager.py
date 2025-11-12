@@ -187,7 +187,7 @@ class SheetsManager:
                 print(f"ERROR: Error getting/creating worksheet '{sheet_name}': {str(e)}")
             return None
 
-    @st.cache_data(ttl=60)
+    @st.cache_data(ttl=300)
     def read_dataframe(self, sheet_name: str, headers: List[str]) -> pd.DataFrame:
         """
         Read data from Google Sheet into pandas DataFrame.
