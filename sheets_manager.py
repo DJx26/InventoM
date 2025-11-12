@@ -151,47 +151,32 @@ class SheetsManager:
         """Return which source supplied credentials: 'secrets_table' | 'secrets_json' | 'file' | None"""
         return getattr(self, 'credentials_source', None)
 
-    def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
+        def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
         """
-        Get existing worksheet or create it if it doesn't exist.
-        
-        Args:
-            sheet_name: Name of the worksheet
-            headers: List of column headers
-            
-        Returns:
-            Worksheet object or None if error
+        Get or create worksheet, cached to avoid hitting Google API rate limits.
         """
-        if not self.is_configured():
-            return None
+        if not hasattr(self, "_ws_cache"):
+            self._ws_cache = {}
+
+        # ✅ Local cache: only call API once per session per sheet
+        if sheet_name in self._ws_cache:
+            return self._ws_cache[sheet_name]
 
         try:
-            # Try to get existing worksheet
+            spreadsheet = self.get_spreadsheet()
             try:
-                worksheet = self.spreadsheet.worksheet(sheet_name)
-                # Ensure headers exist
-                existing_headers = worksheet.row_values(1)
-                if not existing_headers or existing_headers != headers:
-                    # Update headers if they don't match
-                    worksheet.clear()
+                worksheet = spreadsheet.worksheet(sheet_name)
+            except gspread.exceptions.WorksheetNotFound:
+                worksheet = spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols=str(len(headers)))
+                if headers:
                     worksheet.append_row(headers)
-                return worksheet
-            except Exception as e:
-                # Check if it's a WorksheetNotFound error
-                error_name = str(type(e).__name__)
-                error_msg = str(e).lower()
-                if 'WorksheetNotFound' in error_name or 'not found' in error_msg:
-                    # Create new worksheet
-                    worksheet = self.spreadsheet.add_worksheet(
-                        title=sheet_name,
-                        rows=1000,
-                        cols=len(headers)
-                    )
-                    worksheet.append_row(headers)
-                    return worksheet
-                else:
-                    # Re-raise other exceptions
-                    raise
+            self._ws_cache[sheet_name] = worksheet
+            return worksheet
+        except Exception as e:
+            if st:
+                st.error(f"Error getting/creating worksheet '{sheet_name}': {e}")
+            raise
+
         except Exception as e:
             # Handle any other errors
             try:
