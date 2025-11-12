@@ -109,7 +109,7 @@ class DataManager:
                 templates_df.to_csv(self.templates_file, index=False)
                 
     @st.cache_data(ttl=600)
-    def _read_transactions(self) -> pd.DataFrame:
+    def _read_transactions(self, df: pd.DataFrame):
         """Read 'Transactions' with persistent session caching."""
         return self.get_cached_sheet(
             "transactions",
@@ -132,7 +132,7 @@ class DataManager:
             df.to_csv(self.transactions_file, index=False)
    
     @st.cache_data(ttl=600)
-    def _read_stock(self) -> pd.DataFrame:
+    def _read_stock(self, df: pd.DataFrame):
         """Read 'Current Stock' with persistent session caching."""
         return self.get_cached_sheet(
             "current_stock",
