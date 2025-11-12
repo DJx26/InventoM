@@ -126,7 +126,39 @@ class SheetsManager:
             pass
         
         return self.spreadsheet_id
-    
+
+    def get_spreadsheet(self):
+        """
+        Return the gspread Spreadsheet object using the stored spreadsheet ID.
+        Ensures the client and spreadsheet are initialized before returning.
+        """
+        # If spreadsheet already initialized, reuse it
+        if hasattr(self, "spreadsheet") and self.spreadsheet is not None:
+            return self.spreadsheet
+
+        # Ensure client is initialized
+        if not self.client:
+            if hasattr(self, "_initialize_client"):
+                self._initialize_client()
+            else:
+                raise RuntimeError("Google Sheets client not initialized.")
+
+        # Ensure spreadsheet ID is known
+        if not self.spreadsheet_id:
+            self.spreadsheet_id = self._get_spreadsheet_id()
+
+        if not self.spreadsheet_id:
+            raise RuntimeError("Spreadsheet ID not found in secrets or config.")
+
+        # Open the spreadsheet using gspread
+        try:
+            self.spreadsheet = self.client.open_by_key(self.spreadsheet_id)
+            return self.spreadsheet
+        except Exception as e:
+            if st and hasattr(st, "error"):
+                st.error(f"Failed to open spreadsheet: {e}")
+            raise
+
     def is_configured(self) -> bool:
         """Check if Google Sheets is properly configured."""
         # Update spreadsheet_id from secrets if needed
