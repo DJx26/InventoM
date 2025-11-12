@@ -6,12 +6,6 @@ from sheets_manager import SheetsManager
 import gspread
 import toml
 
-def get_cached_sheet(self, key: str, headers: list, reader_func):
-    """Cache Google Sheet data in Streamlit session_state to reduce API calls."""
-    if key not in st.session_state:
-        st.session_state[key] = reader_func(headers)
-    return st.session_state[key]
-
 def clear_transaction_cache():
     st.cache_data.clear()
 class DataManager:
@@ -50,6 +44,12 @@ class DataManager:
         self.templates_file = os.path.join(self.data_dir, "templates.csv")
         
         self._initialize_data_files()
+        
+    def get_cached_sheet(self, key: str, headers: list, reader_func):
+    """Cache Google Sheet data in Streamlit session_state to reduce API calls."""
+    if key not in st.session_state:
+        st.session_state[key] = reader_func(headers)
+    return st.session_state[key]
     
     def _get_use_sheets(self):
         """Lazily check if we should use Google Sheets."""
