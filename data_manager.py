@@ -44,7 +44,7 @@ class DataManager:
         self.templates_file = os.path.join(self.data_dir, "templates.csv")
         
         self._initialize_data_files()
-        
+
     def _get_cached_sheet(self, key: str, headers: list, reader_func):
         """Cache Google Sheet data in Streamlit session_state to reduce API calls."""
         if key not in st.session_state:
@@ -54,7 +54,7 @@ class DataManager:
     # Backwards compatibility for any cached functions referencing the old helper
     def get_cached_sheet(self, key: str, headers: list, reader_func):
         return self._get_cached_sheet(key, headers, reader_func)
-        
+    
     def _get_use_sheets(self):
         """Lazily check if we should use Google Sheets."""
         if self._use_sheets is None:
@@ -115,7 +115,7 @@ class DataManager:
     @st.cache_data(ttl=600)
     def _read_transactions(_self) -> pd.DataFrame:
         """Read 'Transactions' with persistent session caching."""
-        return _self.get_cached_sheet(
+        return _self._get_cached_sheet(
             "transactions",
             _self.transactions_headers,
             lambda headers: _self.sheets_manager.read_dataframe(
@@ -123,47 +123,60 @@ class DataManager:
             ),
         )
 
-    def _write_transactions(self, df: pd.DataFrame):
+    
+    def _write_transactions(self, df: pd.DataFrame) -> bool:
         """Write transactions to Google Sheets or CSV."""
+        success = False
         if self._get_use_sheets():
-            self.sheets_manager.write_dataframe(
-                self.transactions_sheet,
-                df,
+            success = self.sheets_manager.write_dataframe(
+                self.transactions_sheet, 
+                df, 
                 self.transactions_headers
             )
         else:
             df.to_csv(self.transactions_file, index=False)
-        try:
-            st.session_state["transactions"] = df.copy()
-        except Exception:
-            pass
-        st.cache_data.clear()
+            success = True
+
+        if success:
+            try:
+                st.session_state["transactions"] = df.copy()
+            except Exception:
+                pass
+            st.cache_data.clear()
+
+        return success
+   
     @st.cache_data(ttl=600)
     def _read_stock(_self) -> pd.DataFrame:
         """Read 'Current Stock' with persistent session caching."""
-        return _self.get_cached_sheet(
+        return _self._get_cached_sheet(
             "current_stock",
             _self.stock_headers,
             lambda headers: _self.sheets_manager.read_dataframe(
                 _self.stock_sheet, headers
             ),
         )
-    def _write_stock(self, df: pd.DataFrame):
+    def _write_stock(self, df: pd.DataFrame) -> bool:
         """Write stock to Google Sheets or CSV."""
+        success = False
         if self._get_use_sheets():
-            self.sheets_manager.write_dataframe(
+            success = self.sheets_manager.write_dataframe(
                 self.stock_sheet, 
                 df, 
                 self.stock_headers
             )
         else:
             df.to_csv(self.stock_file, index=False)
- # Update caches to reflect the new data
-        try:
-            st.session_state["current_stock"] = df.copy()
-        except Exception:
-            pass
-        st.cache_data.clear()
+            success = True
+
+        if success:
+            try:
+                st.session_state["current_stock"] = df.copy()
+            except Exception:
+                pass
+            st.cache_data.clear()
+
+        return success
     
     def _read_templates(self) -> pd.DataFrame:
         """Read templates from Google Sheets or CSV."""
@@ -178,22 +191,27 @@ class DataManager:
             except Exception:
                 return pd.DataFrame(columns=self.templates_headers)
     
-    def _write_templates(self, df: pd.DataFrame):
+    def _write_templates(self, df: pd.DataFrame) -> bool:
         """Write templates to Google Sheets or CSV."""
+        success = False
         if self._get_use_sheets():
-            self.sheets_manager.write_dataframe(
+            success = self.sheets_manager.write_dataframe(
                 self.templates_sheet, 
                 df, 
                 self.templates_headers
             )
         else:
             df.to_csv(self.templates_file, index=False)
-        try:
-            st.session_state["templates"] = df.copy()
-        except Exception:
-            pass
-        st.cache_data.clear()
+            success = True
 
+        if success:
+            try:
+                st.session_state["templates"] = df.copy()
+            except Exception:
+                pass
+            st.cache_data.clear()
+
+        return success
 
     def add_transaction(self, category, subcategory, transaction_type, quantity, transaction_date, supplier="", notes=""):
         """Add a new transaction and update stock levels."""
@@ -230,10 +248,12 @@ class DataManager:
             transactions_df = pd.concat([transactions_df, new_transaction_df], ignore_index=True)
 
             # Save transactions
-            self._write_transactions(transactions_df)
+            if not self._write_transactions(transactions_df):
+                raise RuntimeError("Failed to persist transactions to storage.")
 
             # Update stock levels
-            self._update_stock_levels(category, subcategory, transaction_type, quantity, supplier)
+            if not self._update_stock_levels(category, subcategory, transaction_type, quantity, supplier):
+                raise RuntimeError("Failed to update current stock.")
 
             return True
 
@@ -241,7 +261,7 @@ class DataManager:
             st.error(f"Error adding transaction: {str(e)}")
             return False
 
-    def _update_stock_levels(self, category, subcategory, transaction_type, quantity, supplier=""):
+    def _update_stock_levels(self, category, subcategory, transaction_type, quantity, supplier="") -> bool:
         """Update current stock levels based on transaction."""
         try:
             # Load current stock
@@ -284,10 +304,73 @@ class DataManager:
                 stock_df = pd.concat([stock_df, new_stock_df], ignore_index=True)
 
             # Save updated stock
-            self._write_stock(stock_df)
+            if not self._write_stock(stock_df):
+                raise RuntimeError("Failed to persist stock updates.")
+
+            return True
 
         except Exception as e:
             st.error(f"Error updating stock levels: {str(e)}")
+            return False
+
+    def recalculate_stock(self) -> bool:
+        """Rebuild current stock sheet from all transactions to ensure consistency."""
+        try:
+            transactions_df = self._read_transactions()
+
+            if transactions_df.empty:
+                empty_stock = pd.DataFrame(columns=self.stock_headers)
+                return self._write_stock(empty_stock)
+
+            df = transactions_df.copy()
+            df['transaction_type'] = df['transaction_type'].astype(str).str.strip().str.title()
+            df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
+
+            df['delta'] = df.apply(
+                lambda row: row['quantity'] if row['transaction_type'] == 'Stock In' else -row['quantity'],
+                axis=1
+            )
+
+            def _latest_non_empty(series):
+                for value in reversed(series.tolist()):
+                    if pd.notna(value) and str(value).strip():
+                        return value
+                return ""
+
+            agg_dict = {'delta': 'sum'}
+            if 'supplier' in df.columns:
+                agg_dict['supplier'] = _latest_non_empty
+            if 'created_at' in df.columns:
+                agg_dict['created_at'] = 'max'
+            if 'date' in df.columns:
+                agg_dict['date'] = 'max'
+
+            grouped = df.groupby(['category', 'subcategory'], as_index=False).agg(agg_dict)
+
+            grouped['remaining_qty'] = grouped['delta'].clip(lower=0)
+
+            last_timestamp = None
+            if 'created_at' in grouped.columns:
+                last_timestamp = grouped['created_at']
+            elif 'date' in grouped.columns:
+                last_timestamp = grouped['date']
+
+            if last_timestamp is not None:
+                grouped['last_updated'] = pd.to_datetime(last_timestamp, errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                grouped['last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            if 'supplier' not in grouped.columns:
+                grouped['supplier'] = ""
+
+            stock_df = grouped[['category', 'subcategory', 'remaining_qty', 'last_updated', 'supplier']]
+            stock_df = stock_df[stock_df['remaining_qty'] > 0].reset_index(drop=True)
+
+            return self._write_stock(stock_df)
+
+        except Exception as e:
+            st.error(f"Error recalculating stock: {str(e)}")
+            return False
 
     def get_current_stock(self, category):
         """Get current stock levels for a specific category."""
@@ -352,7 +435,8 @@ class DataManager:
 
                 # Drop helper cols before saving
                 stock_df = stock_df.drop(columns=['_cat_norm', '_sub_norm'], errors='ignore')
-                self._write_stock(stock_df)
+                if not self._write_stock(stock_df):
+                    raise RuntimeError("Failed to persist stock updates after deletion.")
             else:
                 removed_stock = 0
 
@@ -368,7 +452,8 @@ class DataManager:
                     removed_txs = before_tx - len(tx_df)
 
                     tx_df = tx_df.drop(columns=['_cat_norm', '_sub_norm'], errors='ignore')
-                    self._write_transactions(tx_df)
+                if not self._write_transactions(tx_df):
+                    raise RuntimeError("Failed to persist updated transactions after deletion.")
 
             return True, removed_stock, removed_txs
         except Exception as e:
@@ -500,6 +585,10 @@ class DataManager:
                     st.warning(f"Error processing row {index + 1}: {str(row_error)}")
                     continue
 
+            if success_count > 0:
+                if not self.recalculate_stock():
+                    st.warning("Transactions saved, but stock sheet could not be fully refreshed. Please try recalculating later.")
+
             return success_count
 
         except Exception as e:
@@ -542,7 +631,8 @@ class DataManager:
             templates_df = pd.concat([templates_df, new_template_df], ignore_index=True)
 
             # Save templates
-            self._write_templates(templates_df)
+            if not self._write_templates(templates_df):
+                raise RuntimeError("Failed to persist templates.")
 
             return True
 
@@ -583,7 +673,8 @@ class DataManager:
                 ~((templates_df['category'] == category) & 
                   (templates_df['template_name'] == template_name))
             ]
-            self._write_templates(templates_df)
+            if not self._write_templates(templates_df):
+                raise RuntimeError("Failed to persist templates.")
             return True
         except Exception as e:
             st.error(f"Error deleting template: {str(e)}")
