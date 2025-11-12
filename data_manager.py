@@ -6,6 +6,12 @@ from sheets_manager import SheetsManager
 import gspread
 import toml
 
+def get_cached_sheet(self, key: str, headers: list, reader_func):
+    """Cache Google Sheet data in Streamlit session_state to reduce API calls."""
+    if key not in st.session_state:
+        st.session_state[key] = reader_func(headers)
+    return st.session_state[key]
+
 def clear_transaction_cache():
     st.cache_data.clear()
 class DataManager:
