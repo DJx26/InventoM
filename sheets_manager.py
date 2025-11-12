@@ -151,7 +151,7 @@ class SheetsManager:
         """Return which source supplied credentials: 'secrets_table' | 'secrets_json' | 'file' | None"""
         return getattr(self, 'credentials_source', None)
 
-        def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
+     def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
         """
         Get or create worksheet, cached to avoid hitting Google API rate limits.
         """
