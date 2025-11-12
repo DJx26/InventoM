@@ -102,7 +102,7 @@ class DataManager:
                 templates_df = pd.DataFrame(columns=self.templates_headers)
                 templates_df.to_csv(self.templates_file, index=False)
     
-    @st.cache_data(ttl=600)
+
     def _read_transactions(self) -> pd.DataFrame:
         """Read 'Transactions' sheet data with caching."""
         try:
@@ -125,7 +125,7 @@ class DataManager:
             df.to_csv(self.transactions_file, index=False)
    
 
-    @st.cache_data(ttl=600)
+    
     def _read_stock(self) -> pd.DataFrame:
         """Read 'Current Stock' sheet data with caching."""
         try:
