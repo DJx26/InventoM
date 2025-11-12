@@ -465,7 +465,11 @@ def show_dashboard():
     if not recent_transactions.empty:
         # Format the dataframe for display
         display_df = recent_transactions.copy()
-        display_df['quantity'] = display_df['quantity'].apply(lambda x: f"{x:,.0f}")
+        display_df['quantity'] = (
+            pd.to_numeric(display_df['quantity'], errors='coerce')
+            .fillna(0)
+            .apply(lambda x: f"{x:,.0f}")
+        )
         if 'date' in display_df.columns:
             display_df['date'] = pd.to_datetime(display_df['date'], errors='coerce').dt.strftime('%Y-%m-%d')
 
