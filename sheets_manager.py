@@ -151,7 +151,7 @@ class SheetsManager:
         """Return which source supplied credentials: 'secrets_table' | 'secrets_json' | 'file' | None"""
         return getattr(self, 'credentials_source', None)
 
-     def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
+    def get_or_create_worksheet(self, sheet_name: str, headers: List[str]):
         """
         Get or create worksheet, cached to avoid hitting Google API rate limits.
         """
@@ -167,63 +167,58 @@ class SheetsManager:
             try:
                 worksheet = spreadsheet.worksheet(sheet_name)
             except gspread.exceptions.WorksheetNotFound:
-                worksheet = spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols=str(len(headers)))
+                # Create worksheet if not found
+                cols = max(10, len(headers) or 10)
+                worksheet = spreadsheet.add_worksheet(
+                    title=sheet_name, rows="1000", cols=str(cols)
+                )
                 if headers:
-                    worksheet.append_row(headers)
+                    worksheet.append_row(headers, value_input_option="USER_ENTERED")
+
+            # Cache the worksheet object for this session
             self._ws_cache[sheet_name] = worksheet
             return worksheet
-        except Exception as e:
-            if st:
-                st.error(f"Error getting/creating worksheet '{sheet_name}': {e}")
-            raise
 
         except Exception as e:
-            # Handle any other errors
             try:
-                if st and hasattr(st, 'error'):
+                if st and hasattr(st, "error"):
                     st.error(f"Error getting/creating worksheet '{sheet_name}': {str(e)}")
-            except:
+            except Exception:
                 print(f"ERROR: Error getting/creating worksheet '{sheet_name}': {str(e)}")
             return None
-    
+
+    @st.cache_data(ttl=60)
     def read_dataframe(self, sheet_name: str, headers: List[str]) -> pd.DataFrame:
         """
         Read data from Google Sheet into pandas DataFrame.
-        
-        Args:
-            sheet_name: Name of the worksheet
-            headers: Expected column headers
-            
-        Returns:
-            DataFrame with the data
+        Cached to avoid exceeding API read quotas.
         """
         if not self.is_configured():
             return pd.DataFrame(columns=headers)
-        
+
         try:
             worksheet = self.get_or_create_worksheet(sheet_name, headers)
             if worksheet is None:
                 return pd.DataFrame(columns=headers)
-            
-            # Get all values
+
             values = worksheet.get_all_values()
-            
+
             if not values or len(values) <= 1:
                 # Only headers or empty
                 return pd.DataFrame(columns=headers)
-            
-            # First row should be headers
+
             df = pd.DataFrame(values[1:], columns=headers)
-            
-            # Clean empty rows
-            df = df.dropna(how='all')
-            
+            df = df.dropna(how="all")  # Clean empty rows
+
             return df
-            
+
         except Exception as e:
-            st.error(f"Error reading from sheet '{sheet_name}': {str(e)}")
+            if st and hasattr(st, "error"):
+                st.error(f"Error reading from sheet '{sheet_name}': {str(e)}")
+            else:
+                print(f"Error reading from sheet '{sheet_name}': {str(e)}")
             return pd.DataFrame(columns=headers)
-    
+
     def read_dataframe(self, sheet_name: str, headers: List[str]) -> pd.DataFrame:
         """
         Read data from Google Sheet into pandas DataFrame.
