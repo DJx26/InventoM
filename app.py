@@ -7,31 +7,6 @@ from data_manager import DataManager
 import gspread
 
 from utils import format_date, validate_quantity
-# Init once per session
-if "dm" not in st.session_state:
-    st.session_state.dm = DataManager()
-dm = st.session_state.dm
-
-@st.cache_data(ttl=600)
-def get_stock_data():
-    return dm._read_stock()
-
-@st.cache_data(ttl=600)
-def get_transactions_data():
-    return dm._read_transactions()
-
-if st.button("🔄 Refresh Sheets Cache"):
-    get_stock_data.clear()
-    get_transactions_data.clear()
-    st.cache_data.clear()
-    st.success("Cache cleared successfully!")
-
-category = st.selectbox("Select category", ["Paper", "Boards", "Covers"])
-if st.button("Load Category Data"):
-    st.session_state["stock_data"] = dm.get_current_stock(category)
-
-st.dataframe(st.session_state.get("stock_data", pd.DataFrame()))
-
 try:
     from utils import parse_size_string, evaluate_paper_fit_options
 except Exception:
