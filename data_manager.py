@@ -133,7 +133,11 @@ class DataManager:
             )
         else:
             df.to_csv(self.transactions_file, index=False)
-
+        try:
+            st.session_state["transactions"] = df.copy()
+        except Exception:
+            pass
+        st.cache_data.clear()
     @st.cache_data(ttl=600)
     def _read_stock(_self) -> pd.DataFrame:
         """Read 'Current Stock' with persistent session caching."""
@@ -154,6 +158,12 @@ class DataManager:
             )
         else:
             df.to_csv(self.stock_file, index=False)
+ # Update caches to reflect the new data
+        try:
+            st.session_state["current_stock"] = df.copy()
+        except Exception:
+            pass
+        st.cache_data.clear()
     
     def _read_templates(self) -> pd.DataFrame:
         """Read templates from Google Sheets or CSV."""
@@ -178,6 +188,12 @@ class DataManager:
             )
         else:
             df.to_csv(self.templates_file, index=False)
+        try:
+            st.session_state["templates"] = df.copy()
+        except Exception:
+            pass
+        st.cache_data.clear()
+
 
     def add_transaction(self, category, subcategory, transaction_type, quantity, transaction_date, supplier="", notes=""):
         """Add a new transaction and update stock levels."""
