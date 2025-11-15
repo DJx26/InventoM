@@ -380,7 +380,11 @@ def main():
                     # Display results in expandable section
                     with st.expander(f"View {len(results)} Results", expanded=True):
                         display_results = results.copy()
-                        display_results['quantity'] = display_results['quantity'].apply(lambda x: f"{x:,.0f}")
+                        display_results['quantity'] = (
+                            pd.to_numeric(display_results['quantity'], errors='coerce')
+                            .fillna(0)
+                            .apply(lambda x: f"{x:,.0f}")
+                        )
                         try:
                             display_results['date'] = pd.to_datetime(display_results['date'], errors='coerce').dt.strftime('%Y-%m-%d')
                             display_results = display_results.sort_values('date', ascending=False)
@@ -819,7 +823,11 @@ def show_category_page(category, include_supplier=False):
             with st.expander("Debug: Raw stock rows for this category"):
                 st.dataframe(current_stock, use_container_width=True, hide_index=True)
             display_stock = current_stock.copy()
-            display_stock['remaining_qty'] = display_stock['remaining_qty'].apply(lambda x: f"{x:,.0f}")
+            display_stock['remaining_qty'] = (
+                pd.to_numeric(display_stock['remaining_qty'], errors='coerce')
+                .fillna(0)
+                .apply(lambda x: f"{x:,.0f}")
+            )
 
             column_config = {
                 "subcategory": "Subcategory",
@@ -1103,7 +1111,11 @@ def show_reports():
                 # Detailed transaction table
                 st.subheader("Detailed Transactions")
                 display_df = filtered_df.copy()
-                display_df['quantity'] = display_df['quantity'].apply(lambda x: f"{x:,.0f}")
+                display_df['quantity'] = (
+                    pd.to_numeric(display_df['quantity'], errors='coerce')
+                    .fillna(0)
+                    .apply(lambda x: f"{x:,.0f}")
+                )
                 display_df['date'] = display_df['date'].dt.strftime('%Y-%m-%d')
                 display_df = display_df.sort_values('date', ascending=False)
 
