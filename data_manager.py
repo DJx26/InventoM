@@ -363,7 +363,9 @@ class DataManager:
             if 'supplier' not in grouped.columns:
                 grouped['supplier'] = ""
 
-            stock_df = grouped[['category', 'subcategory', 'remaining_qty', 'last_updated', 'supplier']]
+            stock_df['remaining_qty'] = pd.to_numeric(
+                  stock_df['remaining_qty'], errors='coerce'
+             ).fillna(0)
             stock_df = stock_df[stock_df['remaining_qty'] >= 0].reset_index(drop=True)
 
             return self._write_stock(stock_df)
