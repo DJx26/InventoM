@@ -214,14 +214,8 @@ class DataManager:
 
     def add_transaction(self, category, subcategory, transaction_type, quantity, transaction_date, supplier="", notes=""):
         """Add a new transaction and update stock levels."""
-        transactions_df = None
         try:
-            # Load existing transactions
-            transactions_df['id'] = (
-                 pd.to_numeric(transactions_df['id'], errors='coerce')
-                 .astype('Int64')
-             )
-            transactions_df = transactions_df.sort_values('id').reset_index(drop=True)
+            transactions_df = self._read_transactions()
 
             # Generate new transaction ID
             if 'id' in transactions_df.columns:
