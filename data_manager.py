@@ -1,16 +1,11 @@
-# FIXED & HARDENED VERSION (schema-safe, Arrow-safe)
-# Key fixes:
-# 1. Enforce numeric schema for `id` on READ and WRITE
-# 2. Fix UnboundLocalError by initializing variables
-# 3. Fix recalculate_stock() bug (used undefined stock_df)
-# 4. Prevent mixed dtypes before Streamlit/Arrow
-
 import pandas as pd
 import os
 from datetime import datetime, date
 import streamlit as st
 from sheets_manager import SheetsManager
 import gspread
+import toml
+
 
 def clear_transaction_cache():
     st.cache_data.clear()
@@ -47,7 +42,10 @@ class DataManager:
 
         self._initialize_data_files()
 
-    # ------------------ helpers ------------------
+    # ----------------------------------------------------
+    # INTERNAL HELPERS
+    # ----------------------------------------------------
+
     def _get_use_sheets(self):
         if self._use_sheets is None:
             try:
@@ -56,7 +54,8 @@ class DataManager:
                 self._use_sheets = False
         return self._use_sheets
 
-    def _normalize_ids(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _normalize_id_column(self, df: pd.DataFrame) -> pd.DataFrame:
+        """CRITICAL FIX: enforce numeric id everywhere"""
         if 'id' in df.columns:
             df['id'] = pd.to_numeric(df['id'], errors='coerce').astype('Int64')
         return df
@@ -71,54 +70,87 @@ class DataManager:
             if not os.path.exists(self.templates_file):
                 pd.DataFrame(columns=self.templates_headers).to_csv(self.templates_file, index=False)
 
-    # ------------------ READ / WRITE ------------------
+    # ----------------------------------------------------
+    # READ / WRITE
+    # ----------------------------------------------------
+
     @st.cache_data(ttl=600)
     def _read_transactions(self) -> pd.DataFrame:
         if self._get_use_sheets():
-            df = self.sheets_manager.read_dataframe(self.transactions_sheet, self.transactions_headers)
+            df = self.sheets_manager.read_dataframe(
+                self.transactions_sheet, self.transactions_headers
+            )
         else:
             df = pd.read_csv(self.transactions_file)
-        return self._normalize_ids(df)
+
+        return self._normalize_id_column(df)
 
     def _write_transactions(self, df: pd.DataFrame) -> bool:
-        df = self._normalize_ids(df)
+        df = self._normalize_id_column(df)
+
         if self._get_use_sheets():
-            ok = self.sheets_manager.write_dataframe(self.transactions_sheet, df, self.transactions_headers)
+            ok = self.sheets_manager.write_dataframe(
+                self.transactions_sheet, df, self.transactions_headers
+            )
         else:
             df.to_csv(self.transactions_file, index=False)
             ok = True
+
         if ok:
+            try:
+                st.session_state["transactions"] = df.copy()
+            except Exception:
+                pass
             st.cache_data.clear()
+
         return ok
 
     @st.cache_data(ttl=600)
     def _read_stock(self) -> pd.DataFrame:
         if self._get_use_sheets():
-            df = self.sheets_manager.read_dataframe(self.stock_sheet, self.stock_headers)
+            df = self.sheets_manager.read_dataframe(
+                self.stock_sheet, self.stock_headers
+            )
         else:
             df = pd.read_csv(self.stock_file)
+
         if 'remaining_qty' in df.columns:
-            df['remaining_qty'] = pd.to_numeric(df['remaining_qty'], errors='coerce').fillna(0)
+            df['remaining_qty'] = pd.to_numeric(
+                df['remaining_qty'], errors='coerce'
+            ).fillna(0)
+
         return df
 
     def _write_stock(self, df: pd.DataFrame) -> bool:
         if self._get_use_sheets():
-            ok = self.sheets_manager.write_dataframe(self.stock_sheet, df, self.stock_headers)
+            ok = self.sheets_manager.write_dataframe(
+                self.stock_sheet, df, self.stock_headers
+            )
         else:
             df.to_csv(self.stock_file, index=False)
             ok = True
+
         if ok:
+            try:
+                st.session_state["current_stock"] = df.copy()
+            except Exception:
+                pass
             st.cache_data.clear()
+
         return ok
 
-    # ------------------ CORE LOGIC ------------------
+    # ----------------------------------------------------
+    # TRANSACTIONS
+    # ----------------------------------------------------
+
     def add_transaction(self, category, subcategory, transaction_type,
                         quantity, transaction_date, supplier="", notes=""):
-        transactions_df = None
+
+        transactions_df = None  # FIX: avoid UnboundLocalError
+
         try:
             transactions_df = self._read_transactions()
 
-            # generate ID safely
             if not transactions_df.empty and transactions_df['id'].notna().any():
                 new_id = int(transactions_df['id'].max()) + 1
             else:
@@ -130,26 +162,40 @@ class DataManager:
                 'subcategory': str(subcategory).strip(),
                 'transaction_type': str(transaction_type).strip().title(),
                 'quantity': float(quantity),
-                'date': transaction_date.strftime('%Y-%m-%d') if isinstance(transaction_date, (datetime, date)) else str(transaction_date),
+                'date': transaction_date.strftime('%Y-%m-%d')
+                        if isinstance(transaction_date, (datetime, date))
+                        else str(transaction_date),
                 'supplier': supplier,
                 'notes': notes,
                 'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
 
-            transactions_df = pd.concat([transactions_df, pd.DataFrame([new_tx])], ignore_index=True)
+            transactions_df = pd.concat(
+                [transactions_df, pd.DataFrame([new_tx])],
+                ignore_index=True
+            )
 
             if not self._write_transactions(transactions_df):
-                raise RuntimeError("Failed to save transactions")
+                raise RuntimeError("Failed to persist transactions")
 
-            if not self._update_stock_levels(category, subcategory, transaction_type, quantity, supplier):
+            if not self._update_stock_levels(
+                category, subcategory, transaction_type, quantity, supplier
+            ):
                 raise RuntimeError("Failed to update stock")
 
             return True
+
         except Exception as e:
             st.error(f"Error adding transaction: {e}")
             return False
 
-    def _update_stock_levels(self, category, subcategory, transaction_type, quantity, supplier=""):
+    # ----------------------------------------------------
+    # STOCK
+    # ----------------------------------------------------
+
+    def _update_stock_levels(self, category, subcategory,
+                             transaction_type, quantity, supplier=""):
+
         try:
             stock_df = self._read_stock()
 
@@ -157,49 +203,85 @@ class DataManager:
                 (stock_df['category'] == str(category).strip()) &
                 (stock_df['subcategory'] == str(subcategory).strip())
             )
-            existing = stock_df[mask]
 
-            current = float(existing.iloc[0]['remaining_qty']) if not existing.empty else 0.0
+            existing = stock_df[mask]
+            current_qty = float(existing.iloc[0]['remaining_qty']) if not existing.empty else 0.0
             delta = float(quantity)
-            new_qty = current + delta if transaction_type == 'Stock In' else max(0.0, current - delta)
+
+            new_qty = (
+                current_qty + delta
+                if transaction_type == "Stock In"
+                else max(0.0, current_qty - delta)
+            )
 
             if not existing.empty:
                 stock_df.loc[mask, 'remaining_qty'] = new_qty
                 stock_df.loc[mask, 'last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             else:
-                stock_df = pd.concat([
-                    stock_df,
-                    pd.DataFrame([{
-                        'category': category,
-                        'subcategory': subcategory,
-                        'remaining_qty': new_qty,
-                        'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'supplier': supplier
-                    }])
-                ], ignore_index=True)
+                stock_df = pd.concat([stock_df, pd.DataFrame([{
+                    'category': category,
+                    'subcategory': subcategory,
+                    'remaining_qty': new_qty,
+                    'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'supplier': supplier
+                }])], ignore_index=True)
 
             return self._write_stock(stock_df)
+
         except Exception as e:
             st.error(f"Error updating stock levels: {e}")
             return False
 
     def recalculate_stock(self) -> bool:
         try:
-            tx = self._read_transactions()
-            if tx.empty:
+            transactions_df = self._read_transactions()
+
+            if transactions_df.empty:
                 return self._write_stock(pd.DataFrame(columns=self.stock_headers))
 
-            tx['quantity'] = pd.to_numeric(tx['quantity'], errors='coerce').fillna(0)
-            tx['transaction_type'] = tx['transaction_type'].astype(str).str.title()
-            tx['delta'] = tx.apply(lambda r: r['quantity'] if r['transaction_type'] == 'Stock In' else -r['quantity'], axis=1)
+            df = transactions_df.copy()
+            df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
+            df['transaction_type'] = df['transaction_type'].astype(str).str.title()
 
-            grouped = tx.groupby(['category', 'subcategory'], as_index=False)['delta'].sum()
+            df['delta'] = df.apply(
+                lambda r: r['quantity'] if r['transaction_type'] == 'Stock In' else -r['quantity'],
+                axis=1
+            )
+
+            grouped = df.groupby(
+                ['category', 'subcategory'], as_index=False
+            )['delta'].sum()
+
             grouped['remaining_qty'] = grouped['delta'].clip(lower=0)
             grouped['last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             grouped['supplier'] = ""
 
-            stock_df = grouped[['category', 'subcategory', 'remaining_qty', 'last_updated', 'supplier']]
+            stock_df = grouped[
+                ['category', 'subcategory', 'remaining_qty', 'last_updated', 'supplier']
+            ]
+
             return self._write_stock(stock_df)
+
         except Exception as e:
             st.error(f"Error recalculating stock: {e}")
             return False
+
+    # ----------------------------------------------------
+    # DASHBOARD HELPERS (UNCHANGED)
+    # ----------------------------------------------------
+
+    def get_current_stock(self, category):
+        try:
+            stock_df = self._read_stock()
+            stock_df = stock_df[stock_df['category'] == category].copy()
+            stock_df['remaining_qty'] = pd.to_numeric(
+                stock_df['remaining_qty'], errors='coerce'
+            ).fillna(0)
+            return stock_df[stock_df['remaining_qty'] > 0]
+        except Exception as e:
+            st.error(f"Error getting current stock: {e}")
+            return pd.DataFrame()
+
+    def get_all_transactions(self):
+        return self._read_transactions()
+
