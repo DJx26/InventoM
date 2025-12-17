@@ -218,7 +218,6 @@ class DataManager:
             # Load existing transactions
             transactions_df['id'] = (
                  pd.to_numeric(transactions_df['id'], errors='coerce')
-                 .fillna(0)
                  .astype('Int64')
              )
             transactions_df = transactions_df.sort_values('id').reset_index(drop=True)
