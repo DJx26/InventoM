@@ -217,11 +217,7 @@ class DataManager:
         try:
             transactions_df = self._read_transactions()
 
-            # Generate new transaction ID
-            if 'id' in transactions_df.columns:
-                 transactions_df['id'] = pd.to_numeric(
-                    transactions_df['id'], errors='coerce'
-                ).astype('Int64')
+            # Generate new transaction
  
             if not transactions_df.empty and transactions_df['id'].notna().any():
                 new_id = int(transactions_df['id'].max()) + 1
