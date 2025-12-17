@@ -123,9 +123,20 @@ class DataManager:
             ),
         )
 
-    
+        if 'id' in df.columns:
+            df['id'] = (
+                pd.to_numeric(df['id'], errors='coerce')
+                .astype('Int64')
+        )
+
+        return df
     def _write_transactions(self, df: pd.DataFrame) -> bool:
         """Write transactions to Google Sheets or CSV."""
+        if 'id' in df.columns:
+            df['id'] = (
+                pd.to_numeric(df['id'], errors='coerce')
+                .astype('Int64')
+              )
         success = False
         if self._get_use_sheets():
             success = self.sheets_manager.write_dataframe(
