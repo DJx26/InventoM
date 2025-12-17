@@ -217,7 +217,11 @@ class DataManager:
         """Add a new transaction and update stock levels."""
         try:
             # Load existing transactions
-            transactions_df = self._read_transactions()
+            transactions_df['id'] = (
+                 pd.to_numeric(transactions_df['id'], errors='coerce')
+                 .astype('Int64')
+             )
+
 
             # Generate new transaction ID
             if 'id' in transactions_df.columns:
