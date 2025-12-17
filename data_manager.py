@@ -208,7 +208,7 @@ class DataManager:
             try:
                 st.session_state["templates"] = df.copy()
             except Exception:
-                pass
+                pass   
             st.cache_data.clear()
 
         return success
@@ -220,10 +220,15 @@ class DataManager:
             transactions_df = self._read_transactions()
 
             # Generate new transaction ID
-            if not transactions_df.empty and 'id' in transactions_df.columns:
-                new_id = int(transactions_df['id'].max()) + 1 if transactions_df['id'].notna().any() else 1
-            else:
-                new_id = 1
+            if 'id' in transactions_df.columns:
+                transactions_df['id'] = pd.to_numeric(
+                    transactions_df['id'], errors='coerce'
+                ).astype('Int64')
+ 
+           if not transactions_df.empty and transactions_df['id'].notna().any():
+               new_id = int(transactions_df['id'].max()) + 1
+           else:
+               new_id = 1
 
             # Create new transaction record
             # Normalize inputs
