@@ -214,6 +214,7 @@ class DataManager:
 
     def add_transaction(self, category, subcategory, transaction_type, quantity, transaction_date, supplier="", notes=""):
         """Add a new transaction and update stock levels."""
+        transactions_df = None
         try:
             # Load existing transactions
             transactions_df['id'] = (
