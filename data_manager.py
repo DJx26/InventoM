@@ -347,6 +347,8 @@ class DataManager:
 
             grouped = df.groupby(['category', 'subcategory'], as_index=False).agg(agg_dict)
 
+            # Ensure delta is numeric before calculating remaining_qty
+            grouped['delta'] = pd.to_numeric(grouped['delta'], errors='coerce').fillna(0)
             grouped['remaining_qty'] = grouped['delta'].clip(lower=0)
 
             last_timestamp = None
@@ -364,6 +366,8 @@ class DataManager:
                 grouped['supplier'] = ""
 
             stock_df = grouped[['category', 'subcategory', 'remaining_qty', 'last_updated', 'supplier']]
+            # Ensure remaining_qty is numeric before comparison
+            stock_df['remaining_qty'] = pd.to_numeric(stock_df['remaining_qty'], errors='coerce').fillna(0)
             stock_df = stock_df[stock_df['remaining_qty'] >= 0].reset_index(drop=True)
 
             return self._write_stock(stock_df)
