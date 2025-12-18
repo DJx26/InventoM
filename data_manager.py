@@ -48,7 +48,36 @@ class DataManager:
     def _get_cached_sheet(self, key: str, headers: list, reader_func):
         """Cache Google Sheet data in Streamlit session_state to reduce API calls."""
         if key not in st.session_state:
-            st.session_state[key] = reader_func(headers)
+            df = reader_func(headers)
+            # Convert types immediately after reading
+            if key == "transactions" and not df.empty:
+                if 'id' in df.columns:
+                    df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
+                if 'quantity' in df.columns:
+                    df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
+            elif key == "current_stock" and not df.empty:
+                if 'remaining_qty' in df.columns:
+                    df['remaining_qty'] = pd.to_numeric(df['remaining_qty'], errors='coerce').fillna(0)
+            st.session_state[key] = df
+        else:
+            # Always ensure proper types even for cached data (in case cache has old string types)
+            df = st.session_state[key].copy()
+            if key == "transactions" and not df.empty:
+                if 'id' in df.columns:
+                    # Check if already numeric, if not convert
+                    if df['id'].dtype == 'object':
+                        df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
+                    elif not pd.api.types.is_integer_dtype(df['id']):
+                        df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
+                if 'quantity' in df.columns:
+                    if not pd.api.types.is_numeric_dtype(df['quantity']):
+                        df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
+            elif key == "current_stock" and not df.empty:
+                if 'remaining_qty' in df.columns:
+                    if not pd.api.types.is_numeric_dtype(df['remaining_qty']):
+                        df['remaining_qty'] = pd.to_numeric(df['remaining_qty'], errors='coerce').fillna(0)
+            # Update cache with converted dataframe
+            st.session_state[key] = df
         return st.session_state[key]
 
     # Backwards compatibility for any cached functions referencing the old helper
@@ -115,13 +144,20 @@ class DataManager:
     @st.cache_data(ttl=600)
     def _read_transactions(_self) -> pd.DataFrame:
         """Read 'Transactions' with persistent session caching."""
-        return _self._get_cached_sheet(
+        df = _self._get_cached_sheet(
             "transactions",
             _self.transactions_headers,
             lambda headers: _self.sheets_manager.read_dataframe(
                 _self.transactions_sheet, headers
             ),
         )
+        # Convert numeric columns from strings (Google Sheets returns all as strings)
+        if not df.empty:
+            if 'id' in df.columns:
+                df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
+            if 'quantity' in df.columns:
+                df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
+        return df
 
     
     def _write_transactions(self, df: pd.DataFrame) -> bool:
@@ -149,13 +185,18 @@ class DataManager:
     @st.cache_data(ttl=600)
     def _read_stock(_self) -> pd.DataFrame:
         """Read 'Current Stock' with persistent session caching."""
-        return _self._get_cached_sheet(
+        df = _self._get_cached_sheet(
             "current_stock",
             _self.stock_headers,
             lambda headers: _self.sheets_manager.read_dataframe(
                 _self.stock_sheet, headers
             ),
         )
+        # Convert numeric columns from strings (Google Sheets returns all as strings)
+        if not df.empty:
+            if 'remaining_qty' in df.columns:
+                df['remaining_qty'] = pd.to_numeric(df['remaining_qty'], errors='coerce').fillna(0)
+        return df
     def _write_stock(self, df: pd.DataFrame) -> bool:
         """Write stock to Google Sheets or CSV."""
         success = False
@@ -181,13 +222,21 @@ class DataManager:
     def _read_templates(self) -> pd.DataFrame:
         """Read templates from Google Sheets or CSV."""
         if self._get_use_sheets():
-            return self.sheets_manager.read_dataframe(
+            df = self.sheets_manager.read_dataframe(
                 self.templates_sheet, 
                 self.templates_headers
             )
+            # Convert numeric columns from strings (Google Sheets returns all as strings)
+            if not df.empty and 'id' in df.columns:
+                df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
+            return df
         else:
             try:
-                return pd.read_csv(self.templates_file)
+                df = pd.read_csv(self.templates_file)
+                # Ensure id is numeric for CSV as well
+                if not df.empty and 'id' in df.columns:
+                    df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
+                return df
             except Exception:
                 return pd.DataFrame(columns=self.templates_headers)
     
@@ -221,7 +270,12 @@ class DataManager:
 
             # Generate new transaction ID
             if not transactions_df.empty and 'id' in transactions_df.columns:
-                new_id = int(transactions_df['id'].max()) + 1 if transactions_df['id'].notna().any() else 1
+                # Ensure id column is numeric before finding max
+                ids = pd.to_numeric(transactions_df['id'], errors='coerce').dropna()
+                if len(ids) > 0:
+                    new_id = int(ids.max()) + 1
+                else:
+                    new_id = 1
             else:
                 new_id = 1
 
@@ -616,7 +670,12 @@ class DataManager:
 
             # Generate new template ID
             if not templates_df.empty and 'id' in templates_df.columns:
-                new_id = int(templates_df['id'].max()) + 1 if templates_df['id'].notna().any() else 1
+                # Ensure id column is numeric before finding max
+                ids = pd.to_numeric(templates_df['id'], errors='coerce').dropna()
+                if len(ids) > 0:
+                    new_id = int(ids.max()) + 1
+                else:
+                    new_id = 1
             else:
                 new_id = 1
 
