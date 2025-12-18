@@ -218,7 +218,7 @@ def check_sheets_status():
         # One-click installer if missing
         if missing:
             st.warning("Required packages missing. Click to install now (may take ~1 min).")
-            if st.button("Install required packages", use_container_width=True):
+            if st.button("Install required packages", width='stretch'):
                 try:
                     import subprocess
                     pkgs = [
@@ -242,7 +242,7 @@ def check_sheets_status():
         value=spreadsheet_id or "",
         placeholder="Paste the long ID from Google Sheets URL",
     )
-    if st.button("Save Spreadsheet ID", use_container_width=True):
+    if st.button("Save Spreadsheet ID", width='stretch'):
         try:
             os.makedirs(os.path.join(base_dir, "data"), exist_ok=True)
             with open(os.path.join(base_dir, "data", "config.txt"), 'w') as f:
@@ -271,7 +271,7 @@ def check_sheets_status():
         pass
 
     # Test connection
-    if st.button("🔌 Test Connection", use_container_width=True):
+    if st.button("🔌 Test Connection", width='stretch'):
         with st.spinner("Testing Google Sheets connection..."):
             try:
                 sheets_manager = SheetsManager()
@@ -344,7 +344,7 @@ def main():
     with st.sidebar:
         st.title("⚙️ Settings")
 
-        if st.button("🚪 Logout", use_container_width=True):
+        if st.button("🚪 Logout", width='stretch'):
             st.session_state.auth_manager.logout()
 
         st.markdown("---")
@@ -393,7 +393,7 @@ def main():
 
                         st.dataframe(
                             display_results[['date', 'category', 'subcategory', 'transaction_type', 'quantity', 'supplier', 'notes']],
-                            use_container_width=True,
+                            width='stretch',
                             hide_index=True
                         )
                 else:
@@ -484,7 +484,7 @@ def show_dashboard():
 
         st.dataframe(
             display_df,
-            use_container_width=True,
+            width='stretch',
             hide_index=True
         )
     else:
@@ -501,7 +501,7 @@ def show_dashboard():
             if not low_stock.empty:
                 st.warning(f"⚠️ Low stock in {category}: {len(low_stock)} items below threshold")
                 with st.expander(f"View {category} low stock items"):
-                    st.dataframe(low_stock, use_container_width=True, hide_index=True)
+                    st.dataframe(low_stock, width='stretch', hide_index=True)
 
 def show_category_page(category, include_supplier=False):
     st.header(f"{category} Stock Management")
@@ -638,7 +638,7 @@ def show_category_page(category, include_supplier=False):
                                     }
                                     for r in results_now
                                 ])
-                                st.dataframe(df_now, use_container_width=True, hide_index=True)
+                                st.dataframe(df_now, width='stretch', hide_index=True)
                             except Exception:
                                 st.json([
                                     {
@@ -683,7 +683,7 @@ def show_category_page(category, include_supplier=False):
         st.markdown("---")
         with st.expander("Debug: Latest transactions for this category"):
             _hist = st.session_state.data_manager.get_transaction_history(category, limit=5)
-            st.dataframe(_hist, use_container_width=True, hide_index=True)
+            st.dataframe(_hist, width='stretch', hide_index=True)
         # Excel upload section
         st.subheader("📊 Bulk Upload")
         uploaded_file = st.file_uploader(
@@ -699,7 +699,7 @@ def show_category_page(category, include_supplier=False):
                 df = pd.read_excel(uploaded_file, engine='openpyxl')
                 
                 st.write("**Preview of uploaded data:**")
-                st.dataframe(df.head(), use_container_width=True)
+                st.dataframe(df.head(), width='stretch')
                 
                 # Show detected columns
                 st.info(f"**Detected columns:** {', '.join(df.columns.tolist())}")
@@ -768,7 +768,7 @@ def show_category_page(category, include_supplier=False):
             sample_data["notes"] = ["Initial stock", "Used for printing"]
 
             try:
-                st.dataframe(pd.DataFrame(sample_data), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(sample_data), width='stretch', hide_index=True)
             except Exception:
                 # Fallback display if pandas import is unavailable at runtime
                 st.json(sample_data)
@@ -821,7 +821,7 @@ def show_category_page(category, include_supplier=False):
         if not current_stock.empty:
             # Format quantities for display
             with st.expander("Debug: Raw stock rows for this category"):
-                st.dataframe(current_stock, use_container_width=True, hide_index=True)
+                st.dataframe(current_stock, width='stretch', hide_index=True)
             display_stock = current_stock.copy()
             display_stock['remaining_qty'] = (
                 pd.to_numeric(display_stock['remaining_qty'], errors='coerce')
@@ -864,7 +864,7 @@ def show_category_page(category, include_supplier=False):
                         st.error("Please select a subcategory to delete.")
             st.dataframe(
                 display_stock,
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 column_config=column_config
             )
@@ -911,7 +911,7 @@ def show_category_page(category, include_supplier=False):
                                     }
                                     for r in results
                                 ])
-                                st.dataframe(df, use_container_width=True, hide_index=True)
+                                st.dataframe(df, width='stretch', hide_index=True)
                             else:
                                 st.info("No fitting options found for this size in current Paper stock.")
             with st.expander("Quick Delete Subcategory (exact match)", expanded=False):
@@ -960,7 +960,7 @@ def show_category_page(category, include_supplier=False):
 
                     st.dataframe(
                         display_history,
-                        use_container_width=True,
+                        width='stretch',
                         hide_index=True
                     )
                 else:
@@ -1121,7 +1121,7 @@ def show_reports():
 
                 st.dataframe(
                     display_df,
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True
                 )
 
@@ -1135,7 +1135,7 @@ def show_reports():
                         data=csv,
                         file_name=f"stock_report_{start_date}_{end_date}.csv",
                         mime="text/csv",
-                        use_container_width=True
+                        width='stretch'
                     )
 
                 with col2:
@@ -1150,7 +1150,7 @@ def show_reports():
                         data=buffer,
                         file_name=f"stock_report_{start_date}_{end_date}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
+                        width='stretch'
                     )
 
             else:
@@ -1160,3 +1160,4 @@ def show_reports():
 
 if __name__ == "__main__":
     main()
+
