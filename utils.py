@@ -85,6 +85,11 @@ def get_low_stock_items(stock_df, threshold=10):
     """Get items with stock below threshold."""
     if stock_df.empty:
         return stock_df
+        # Ensure remaining_qty is numeric before comparison
+    stock_df = stock_df.copy()
+    if 'remaining_qty' in stock_df.columns:
+        stock_df['remaining_qty'] = pd.to_numeric(stock_df['remaining_qty'], errors='coerce').fillna(0)
     
     return stock_df[stock_df['remaining_qty'] <= threshold]
+    
     
