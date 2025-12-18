@@ -45,38 +45,47 @@ class DataManager:
         
         self._initialize_data_files()
 
+    def _ensure_numeric_types(self, df: pd.DataFrame, df_type: str) -> pd.DataFrame:
+        """Ensure numeric columns have proper types to prevent PyArrow errors.
+        Always converts, even if dtype appears correct, to handle mixed types."""
+        if df.empty:
+            return df
+        df = df.copy()
+        try:
+            if df_type == "transactions":
+                if 'id' in df.columns:
+                    # Convert to numeric first, then to int - handles strings, floats, etc.
+                    df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0)
+                    df['id'] = df['id'].astype(int)
+                if 'quantity' in df.columns:
+                    df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0.0)
+            elif df_type == "stock":
+                if 'remaining_qty' in df.columns:
+                    df['remaining_qty'] = pd.to_numeric(df['remaining_qty'], errors='coerce').fillna(0.0)
+            elif df_type == "templates":
+                if 'id' in df.columns:
+                    # Convert to numeric first, then to int - handles strings, floats, etc.
+                    df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0)
+                    df['id'] = df['id'].astype(int)
+        except Exception:
+            # If conversion fails, return original df to prevent breaking the app
+            pass
+        return df
+    
     def _get_cached_sheet(self, key: str, headers: list, reader_func):
         """Cache Google Sheet data in Streamlit session_state to reduce API calls."""
         if key not in st.session_state:
             df = reader_func(headers)
-            # Convert types immediately after reading
-            if key == "transactions" and not df.empty:
-                if 'id' in df.columns:
-                    df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
-                if 'quantity' in df.columns:
-                    df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
-            elif key == "current_stock" and not df.empty:
-                if 'remaining_qty' in df.columns:
-                    df['remaining_qty'] = pd.to_numeric(df['remaining_qty'], errors='coerce').fillna(0)
+            # Convert types immediately after reading using helper function
+            df_type = "transactions" if key == "transactions" else ("stock" if key == "current_stock" else "templates")
+            df = self._ensure_numeric_types(df, df_type)
             st.session_state[key] = df
         else:
             # Always ensure proper types even for cached data (in case cache has old string types)
             df = st.session_state[key].copy()
-            if key == "transactions" and not df.empty:
-                if 'id' in df.columns:
-                    # Check if already numeric, if not convert
-                    if df['id'].dtype == 'object':
-                        df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
-                    elif not pd.api.types.is_integer_dtype(df['id']):
-                        df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
-                if 'quantity' in df.columns:
-                    if not pd.api.types.is_numeric_dtype(df['quantity']):
-                        df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
-            elif key == "current_stock" and not df.empty:
-                if 'remaining_qty' in df.columns:
-                    if not pd.api.types.is_numeric_dtype(df['remaining_qty']):
-                        df['remaining_qty'] = pd.to_numeric(df['remaining_qty'], errors='coerce').fillna(0)
-            # Update cache with converted dataframe
+            df_type = "transactions" if key == "transactions" else ("stock" if key == "current_stock" else "templates")
+            df = self._ensure_numeric_types(df, df_type)
+            # Update cache with converted dataframe to prevent future issues
             st.session_state[key] = df
         return st.session_state[key]
 
@@ -175,7 +184,9 @@ class DataManager:
 
         if success:
             try:
-                st.session_state["transactions"] = df.copy()
+                # Ensure proper types before caching
+                df_cached = self._ensure_numeric_types(df.copy(), "transactions")
+                st.session_state["transactions"] = df_cached
             except Exception:
                 pass
             st.cache_data.clear()
@@ -212,7 +223,9 @@ class DataManager:
 
         if success:
             try:
-                st.session_state["current_stock"] = df.copy()
+                # Ensure proper types before caching
+                df_cached = self._ensure_numeric_types(df.copy(), "stock")
+                st.session_state["current_stock"] = df_cached
             except Exception:
                 pass
             st.cache_data.clear()
@@ -300,6 +313,12 @@ class DataManager:
             # Add transaction to dataframe
             new_transaction_df = pd.DataFrame([new_transaction])
             transactions_df = pd.concat([transactions_df, new_transaction_df], ignore_index=True)
+            
+            # Ensure proper types after concatenation (important for PyArrow compatibility)
+            if 'id' in transactions_df.columns:
+                transactions_df['id'] = pd.to_numeric(transactions_df['id'], errors='coerce').fillna(0).astype(int)
+            if 'quantity' in transactions_df.columns:
+                transactions_df['quantity'] = pd.to_numeric(transactions_df['quantity'], errors='coerce').fillna(0)
 
             # Save transactions
             if not self._write_transactions(transactions_df):
@@ -537,7 +556,8 @@ class DataManager:
                 if limit:
                     filtered_df = filtered_df.head(limit)
 
-            return filtered_df
+            # Ensure proper types before returning
+            return self._ensure_numeric_types(filtered_df, "transactions")
 
         except Exception as e:
             st.error(f"Error getting transaction history: {str(e)}")
@@ -552,7 +572,8 @@ class DataManager:
                 # Sort by created_at or date, descending
                 sort_column = 'created_at' if 'created_at' in transactions_df.columns else 'date'
                 recent_transactions = transactions_df.sort_values(sort_column, ascending=False).head(limit)
-                return recent_transactions
+                # Ensure proper types before returning
+                return self._ensure_numeric_types(recent_transactions, "transactions")
             else:
                 return pd.DataFrame()
 
@@ -564,7 +585,8 @@ class DataManager:
         """Get all transactions."""
         try:
             transactions_df = self._read_transactions()
-            return transactions_df
+            # Ensure proper types before returning
+            return self._ensure_numeric_types(transactions_df, "transactions")
         except Exception as e:
             st.error(f"Error getting all transactions: {str(e)}")
             return pd.DataFrame()
@@ -692,6 +714,10 @@ class DataManager:
             # Add template to dataframe
             new_template_df = pd.DataFrame([new_template])
             templates_df = pd.concat([templates_df, new_template_df], ignore_index=True)
+            
+            # Ensure proper types after concatenation (important for PyArrow compatibility)
+            if 'id' in templates_df.columns:
+                templates_df['id'] = pd.to_numeric(templates_df['id'], errors='coerce').fillna(0).astype(int)
 
             # Save templates
             if not self._write_templates(templates_df):
